@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlDialectMappings">
+    <file url="file://$PROJECT_DIR$/IM.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/service/user/model/apply_friend/apply_friend.sql.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/service/user/model/balance_log/balance_log.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/service/user/model/friend/friend.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/service/user/model/session/session.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/service/user/model/user/user.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/service/user/model/user_balance/user_balance.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/service/user/model/user_session/user_session.sql" dialect="MySQL" />
+  </component>
+</project>
