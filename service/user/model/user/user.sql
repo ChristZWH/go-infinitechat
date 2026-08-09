@@ -1,0 +1,21 @@
+CREATE TABLE `user` (
+    `user_id` bigint NOT NULL COMMENT '用户 ID (分布式 ID)',
+    `phone` char(11) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '用户手机号',
+    `email` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '用户邮箱',
+    `password` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '用户密码',
+    `nickname` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '用户昵称',
+    `avatar` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'http://47.115.55.73:9000/infinite-chat/default_avatar.png' COMMENT '用户头像url',
+    `gender` tinyint(1) NOT NULL DEFAULT 2 COMMENT '性别 0 女 1 男 2 未知',
+    `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '个性签名',
+    `state` tinyint(1) NOT NULL DEFAULT 0 COMMENT '状态 0 正常 1 封禁 2 注销',
+    `role` tinyint(1) NOT NULL DEFAULT 0 COMMENT '角色类型 0 普通用户 1 管理员 2 超级管理员',
+    `created_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete` tinyint NOT NULL DEFAULT 0 COMMENT '删除标记 (0未删 1已删)',
+    PRIMARY KEY (`user_id`) USING BTREE,
+    UNIQUE INDEX idx_email(`email` ASC) USING BTREE,
+    UNIQUE INDEX idx_phone(`phone` ASC) USING BTREE,
+    INDEX idx_state(`state` ASC) USING BTREE,
+    INDEX idx_role(`role` ASC) USING BTREE,
+    INDEX idx_create_time(`created_time` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户表' ROW_FORMAT = DYNAMIC;
