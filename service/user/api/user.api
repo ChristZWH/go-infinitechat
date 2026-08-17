@@ -1,0 +1,40 @@
+info (
+	title: "用户服务"
+	desc:  "实现用户相关功能"
+)
+
+// sendCaptcha
+type SendCaptchaReq {
+	Account string `json:"account" form:"account,omitempty" validate:"required,min5,max=20" msg:"required=账号不能为空，min=账号长度在5到10之间，max=账号长度在5到10之间"`
+}
+
+// LoginRequest
+type LoginRequest {
+	Account  string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
+	Password string `json:"password" form:"password,optional" validate:"required" msg:"required=密码不能为空"`
+}
+
+// LoginResponse
+type LoginResponse {
+	UserId       int64  `json:"userId" `
+	Nickname     string `json:"nickName,omitempty" `
+	Avatar       string `json:"avatar,omitempty"`
+	Gender       int64  `json:"gender"`
+	Description  string `json:"description,omitempty"`
+	State        int64  `json:"state"`
+	Role         int64  `json:"role"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refreshToken"`
+	WeServiceUrl string `json:"weServiceUrl"`
+}
+
+@server (
+	prefix:  /api/user
+	group:   user
+	timeout: 10s
+)
+service user-api {
+	@handler loginPassword
+	post /loginPassword (LoginRequest) returns (LoginResponse)
+}
+
