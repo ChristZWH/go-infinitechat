@@ -36,7 +36,7 @@ type LoginResponse {
 service user-api {
 	@handler sendCaptcha
 	post /sendCaptcha (SendCaptchaReq) returns (string)
-	
+
 	@handler loginPassword // 密码登录
 	post /loginPassword (LoginRequest) returns (LoginResponse)
 }

@@ -20,3 +20,7 @@ type LoginResponse struct {
 	RefreshToken string `json:"refreshToken"`
 	WeServiceUrl string `json:"weServiceUrl"`
 }
+
+type SendCaptchaReq struct {
+	Account string `json:"account" form:"account,omitempty" validate:"required,min5,max=20" msg:"required=账号不能为空，min=账号长度在5到10之间，max=账号长度在5到10之间"`
+}

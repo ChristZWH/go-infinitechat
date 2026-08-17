@@ -21,6 +21,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/loginPassword",
 				Handler: user.LoginPasswordHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/sendCaptcha",
+				Handler: user.SendCaptchaHandler(serverCtx),
+			},
 		},
 		rest.WithPrefix("/api/user"),
 		rest.WithTimeout(10000*time.Millisecond),
