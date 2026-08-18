@@ -13,14 +13,11 @@ type GetUploadURLRequest struct {
 	FileName string `json:"fileName,optional" form:"fileName,optional" validate:"required" msg:"required=文件名不能为空"`
 }
 
-type LoginCodeRequest struct {
-	Account string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
-	Code    string `json:"code" form:"code,optional" validate:"required" msg:"required=验证码不能为空"`
-}
-
 type LoginRequest struct {
+	Type     string `json:"type" form:"type,optional" validate:"required" msg:"required=登录方式不能为空"`
 	Account  string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
-	Password string `json:"password" form:"password,optional" validate:"required" msg:"required=密码不能为空"`
+	Password string `json:"password" form:"password,optional"`
+	Code     string `json:"code" form:"code,optional"`
 }
 
 type LoginResponse struct {
@@ -37,7 +34,7 @@ type LoginResponse struct {
 }
 
 type RefreshTokenRequest struct {
-	RefreshToken string `json:"refreshToken"`
+	RefreshToken string `json:"refreshToken" form:"refreshToken,optional"`
 }
 
 type SendCaptchaRequest struct {

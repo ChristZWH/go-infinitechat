@@ -22,34 +22,19 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Handler: user.RefreshTokenHandler(serverCtx),
 			},
 			{
-				Method:  http.MethodPost,
+				Method:  http.MethodPut,
 				Path:    "/avatar",
 				Handler: user.UpdateAvatarHandler(serverCtx),
 			},
 			{
-				Method:  http.MethodGet,
-				Path:    "/balance/:userId",
-				Handler: user.GetUserBalanceHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/balance/detail/:userId",
-				Handler: user.GetBalanceDetailHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
+				Method:  http.MethodPost,
 				Path:    "/captcha",
 				Handler: user.CaptchaHandler(serverCtx),
 			},
 			{
 				Method:  http.MethodPost,
-				Path:    "/loginCode",
-				Handler: user.LoginCodeHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/loginPassword",
-				Handler: user.LoginPasswordHandler(serverCtx),
+				Path:    "/login",
+				Handler: user.LoginHandler(serverCtx),
 			},
 			{
 				Method:  http.MethodPost,
@@ -57,29 +42,39 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Handler: user.LogoutHandler(serverCtx),
 			},
 			{
+				Method:  http.MethodPut,
+				Path:    "/password",
+				Handler: user.UpdatePasswordHandler(serverCtx),
+			},
+			{
 				Method:  http.MethodGet,
 				Path:    "/refreshUri",
 				Handler: user.RefreshUriHandler(serverCtx),
 			},
 			{
-				Method:  http.MethodPost,
-				Path:    "/register",
-				Handler: user.RegisterHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
-				Path:    "/updatePassword",
-				Handler: user.UpdatePasswordHandler(serverCtx),
-			},
-			{
 				Method:  http.MethodGet,
-				Path:    "/uploadUrl",
+				Path:    "/upload-url",
 				Handler: user.GetUploadUrlHandler(serverCtx),
 			},
 			{
+				Method:  http.MethodPost,
+				Path:    "/users",
+				Handler: user.RegisterHandler(serverCtx),
+			},
+			{
 				Method:  http.MethodGet,
-				Path:    "/user/info",
+				Path:    "/users/:userId",
 				Handler: user.UserInfoHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/users/:userId/balance",
+				Handler: user.GetUserBalanceHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/users/:userId/balance/records",
+				Handler: user.GetBalanceDetailHandler(serverCtx),
 			},
 		},
 		rest.WithPrefix("/api/user"),
