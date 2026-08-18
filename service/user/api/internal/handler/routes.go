@@ -18,6 +18,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		[]rest.Route{
 			{
 				Method:  http.MethodGet,
+				Path:    "/UploadUrl",
+				Handler: user.GetUploadUrlHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
 				Path:    "/auth/refresh",
 				Handler: user.RefreshTokenHandler(serverCtx),
 			},
@@ -28,18 +33,18 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 			{
 				Method:  http.MethodGet,
-				Path:    "/balance/:uderId",
+				Path:    "/balance/:userId",
 				Handler: user.GetUserBalanceHandler(serverCtx),
 			},
 			{
 				Method:  http.MethodGet,
-				Path:    "/balanceDetail/:userId",
+				Path:    "/balance/detail/:userId",
 				Handler: user.GetBalanceDetailHandler(serverCtx),
 			},
 			{
 				Method:  http.MethodGet,
-				Path:    "/getuploadUrl",
-				Handler: user.GetUploadUrlHandler(serverCtx),
+				Path:    "/captcha",
+				Handler: user.CaptchaHandler(serverCtx),
 			},
 			{
 				Method:  http.MethodPost,
@@ -67,18 +72,13 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Handler: user.RegisterHandler(serverCtx),
 			},
 			{
-				Method:  http.MethodGet,
-				Path:    "/sendCaptcha",
-				Handler: user.SendCaptchaHandler(serverCtx),
-			},
-			{
 				Method:  http.MethodPost,
 				Path:    "/updatePassword",
 				Handler: user.UpdatePasswordHandler(serverCtx),
 			},
 			{
 				Method:  http.MethodGet,
-				Path:    "/userInfo",
+				Path:    "/user/info",
 				Handler: user.UserInfoHandler(serverCtx),
 			},
 		},
