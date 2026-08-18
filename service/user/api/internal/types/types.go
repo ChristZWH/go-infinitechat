@@ -5,17 +5,17 @@ package types
 
 type BalanceDetailRequest struct {
 	UserId   string `json:"userId" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
-	PageNum  string `json:"pageNum,default=1" form:"pageNum,defalut=1"`
-	PageSize string `json:"pageSize,default=20,range=[1：100]" form:"pageSize,default=20,range=[1:100]"`
+	PageNum  int64  `json:"pageNum,default=1" form:"pageNum,default=1"`
+	PageSize int64  `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"`
 }
 
-type GetUploadUrl struct {
-	FileName string `json:"fileName,optional" form:"fileName,optional" validate:"required" msg:"文件名不能为空"`
+type GetUploadURLRequest struct {
+	FileName string `json:"fileName,optional" form:"fileName,optional" validate:"required" msg:"required=文件名不能为空"`
 }
 
 type LoginCodeRequest struct {
-	Account string `json:"account" form:"account,optional" validate:"required" msg:"账号不能为空"`
-	Code    string `json:"account" form:"account,optional" validate:"required" msg:"验证码不能为空"`
+	Account string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
+	Code    string `json:"code" form:"code,optional" validate:"required" msg:"验证码不能为空"`
 }
 
 type LoginRequest struct {
@@ -24,8 +24,8 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	UserId       int64  `json:"userId" `
-	Nickname     string `json:"nickName,omitempty" `
+	UserId       int64  `json:"userId"`
+	Nickname     string `json:"nickName,omitempty"`
 	Avatar       string `json:"avatar,omitempty"`
 	Gender       int64  `json:"gender"`
 	Description  string `json:"description,omitempty"`
@@ -33,15 +33,15 @@ type LoginResponse struct {
 	Role         int64  `json:"role"`
 	Token        string `json:"token"`
 	RefreshToken string `json:"refreshToken"`
-	WeServiceUrl string `json:"weServiceUrl"`
+	WeServiceURL string `json:"weServiceUrl"`
 }
 
-type RefreshTokeRequest struct {
+type RefreshTokenRequest struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
-type SendCaptchaReq struct {
-	Account string `json:"account" form:"account,omitempty" validate:"required,min5,max=20" msg:"required=账号不能为空，min=账号长度在5到10之间，max=账号长度在5到10之间"`
+type SendCaptchaRequest struct {
+	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空，min=账号长度在5到10之间，max=账号长度在5到10之间"`
 }
 
 type UpdateAvatarRequest struct {
@@ -49,16 +49,16 @@ type UpdateAvatarRequest struct {
 	UserId int64  `json:"userId" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 }
 
-type UpdatePassword struct {
+type UpdatePasswordRequest struct {
 	Account         string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
 	Password        string `json:"password" form:"password,optional" validate:"required" msg:"密码不能为空"`
 	ConfirmPassword string `json:"confirmPassword" form:"confirmPassword,optional" validate:"required" msg:"确认密码不能为空"`
 	Code            string `json:"code" form:"code,optional" validate:"required" msg:"验证码不能为空"`
 }
 
-type UploadUrlResponse struct {
-	UpLoadUrl   string `json:"uploadUrl"`
-	DownLoadUrl string `json:"downloadUrl"`
+type UploadURLResponse struct {
+	UpLoadURL   string `json:"uploadUrl"`
+	DownLoadURL string `json:"downloadUrl"`
 }
 
 type UserIdPathRequest struct {
@@ -79,9 +79,9 @@ type UserInfoResponse struct {
 }
 
 type UserRegisterRequest struct {
-	Account         string `json:"account" form:"account,optional" validate:"required" msg:"账号不能为空"`
-	Password        string `json:"password" form:"password,optional" validate:"required" msg:"密码不能为空"`
-	ConfirmPassword string `json:"confirmPassword" form:"confirmPassword,optional" validate:"required" msg:"确认密码不能为空"`
-	Code            string `json:"code" form:"code,optional" validate:"required" msg:"验证码不能为空"`
-	Nickname        string `json:"nickname" form:"nickname,optional" validate:"required" msg:"昵称不能为空"`
+	Account         string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
+	Password        string `json:"password" form:"password,optional" validate:"required" msg:"required=密码不能为空"`
+	ConfirmPassword string `json:"confirmPassword" form:"confirmPassword,optional" validate:"required" msg:"required=确认密码不能为空"`
+	Code            string `json:"code" form:"code,optional" validate:"required" msg:"required=验证码不能为空"`
+	Nickname        string `json:"nickname" form:"nickname,optional" validate:"required" msg:"required=昵称不能为空"`
 }

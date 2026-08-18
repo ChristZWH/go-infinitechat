@@ -5,7 +5,7 @@ info (
 
 // SendCaptcha
 type SendCaptchaRequest {
-	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空，min=账号长度在5到10之间，max=账号长度在5到10之间"`
+	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空，min=账号长度在5到20之间，max=账号长度在5到20之间"`
 }
 
 // LoginRequest
@@ -31,7 +31,7 @@ type LoginResponse {
 // LoginCodeRequest
 type LoginCodeRequest {
 	Account string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
-	Code    string `json:"code" form:"code,optional" validate:"required" msg:"验证码不能为空"`
+	Code    string `json:"code" form:"code,optional" validate:"required" msg:"required=验证码不能为空"`
 }
 
 // UserRegisterRequest
@@ -55,15 +55,15 @@ type UserInfoResponse {
 
 // UserIdRequest
 type UserIdRequest {
-	UserId int64 `json:"userId" form:"userId,optional" validate:"required" msg:"用户ID不能为空"`
+	UserId int64 `json:"userId" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 }
 
 // UpdatePasswordRequest
 type UpdatePasswordRequest {
 	Account         string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
-	Password        string `json:"password" form:"password,optional" validate:"required" msg:"密码不能为空"`
-	ConfirmPassword string `json:"confirmPassword" form:"confirmPassword,optional" validate:"required" msg:"确认密码不能为空"`
-	Code            string `json:"code" form:"code,optional" validate:"required" msg:"验证码不能为空"`
+	Password        string `json:"password" form:"password,optional" validate:"required" msg:"required=密码不能为空"`
+	ConfirmPassword string `json:"confirmPassword" form:"confirmPassword,optional" validate:"required" msg:"required=确认密码不能为空"`
+	Code            string `json:"code" form:"code,optional" validate:"required" msg:"required=验证码不能为空"`
 }
 
 // GetUploadURLRequest
@@ -73,26 +73,26 @@ type GetUploadURLRequest {
 
 // UploadURLResponse
 type UploadURLResponse {
-	UpLoadURL   string `json:"uploadUrl"`
-	DownLoadURL string `json:"downloadUrl"`
+	UploadURL   string `json:"uploadUrl"`
+	DownloadURL string `json:"downloadUrl"`
 }
 
 // UpdateAvatarRequest
 type UpdateAvatarRequest {
-	Url    string `json:"url" form:"url,optional" validate:"required" msg:"required=url不能为空"`
+	URL    string `json:"url" form:"url,optional" validate:"required" msg:"required=url不能为空"`
 	UserId int64  `json:"userId" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 }
 
 // UserIdPathRequest
 type UserIdPathRequest {
-	UserId string `json:"userId" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	UserId string `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 }
 
 // BalanceDetailRequest
 type BalanceDetailRequest {
-	UserId   string `json:"userId" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
-	PageNum  int64 `json:"pageNum,default=1" form:"pageNum,default=1"`
-	PageSize int64 `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"`
+	UserId   string `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	PageNum  int64  `json:"pageNum,default=1" form:"pageNum,default=1"`
+	PageSize int64  `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"`
 }
 
 // RefreshTokenRequest
@@ -131,7 +131,7 @@ service user-api {
 	get /refreshUri (UserIdRequest)
 
 	@handler getUploadUrl //生成MinIO预签名上传URL和拼接下载URL
-	get /UploadUrl (GetUploadURLRequest) returns (UploadURLResponse)
+	get /uploadUrl (GetUploadURLRequest) returns (UploadURLResponse)
 
 	@handler updateAvatar
 	post /avatar (UpdateAvatarRequest)
@@ -145,3 +145,4 @@ service user-api {
 	@handler refreshToken
 	post /auth/refresh (RefreshTokenRequest) returns (string)
 }
+
