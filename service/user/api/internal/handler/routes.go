@@ -17,14 +17,69 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 	server.AddRoutes(
 		[]rest.Route{
 			{
+				Method:  http.MethodGet,
+				Path:    "/auth/refresh",
+				Handler: user.RefreshTokenHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/avatar",
+				Handler: user.UpdateAvatarHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/balance/:uderId",
+				Handler: user.GetUserBalanceHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/balanceDetail/:userId",
+				Handler: user.GetBalanceDetailHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/getuploadUrl",
+				Handler: user.GetUploadUrlHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/loginCode",
+				Handler: user.LoginCodeHandler(serverCtx),
+			},
+			{
 				Method:  http.MethodPost,
 				Path:    "/loginPassword",
 				Handler: user.LoginPasswordHandler(serverCtx),
 			},
 			{
 				Method:  http.MethodPost,
+				Path:    "/logout",
+				Handler: user.LogoutHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/refreshUri",
+				Handler: user.RefreshUriHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/register",
+				Handler: user.RegisterHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
 				Path:    "/sendCaptcha",
 				Handler: user.SendCaptchaHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/updatePassword",
+				Handler: user.UpdatePasswordHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/userInfo",
+				Handler: user.UserInfoHandler(serverCtx),
 			},
 		},
 		rest.WithPrefix("/api/user"),
