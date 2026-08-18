@@ -8,10 +8,12 @@ type SendCaptchaRequest {
 	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空，min=账号长度在5到20之间，max=账号长度在5到20之间"`
 }
 
-// LoginRequest
+// LoginRequest 登录请求,Type 区分登录方式: password=密码登录, code=验证码登录
 type LoginRequest {
+	Type     string `json:"type" form:"type,optional" validate:"required" msg:"required=登录方式不能为空"`
 	Account  string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
-	Password string `json:"password" form:"password,optional" validate:"required" msg:"required=密码不能为空"`
+	Password string `json:"password" form:"password,optional"`
+	Code     string `json:"code" form:"code,optional"`
 }
 
 // LoginResponse
@@ -26,12 +28,6 @@ type LoginResponse {
 	Token        string `json:"token"`
 	RefreshToken string `json:"refreshToken"`
 	WeServiceURL string `json:"weServiceUrl"`
-}
-
-// LoginCodeRequest
-type LoginCodeRequest {
-	Account string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
-	Code    string `json:"code" form:"code,optional" validate:"required" msg:"required=验证码不能为空"`
 }
 
 // UserRegisterRequest
@@ -85,7 +81,7 @@ type UpdateAvatarRequest {
 
 // UserIdPathRequest
 type UserIdPathRequest {
-	UserId string `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	UserId int64 `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 }
 
 // BalanceDetailRequest
@@ -97,7 +93,7 @@ type BalanceDetailRequest {
 
 // RefreshTokenRequest
 type RefreshTokenRequest {
-	RefreshToken string `json:"refreshToken"`
+	RefreshToken string `json:"refreshToken" form:"refreshToken,optional"`
 }
 
 @server (
@@ -106,43 +102,40 @@ type RefreshTokenRequest {
 	timeout: 10s
 )
 service user-api {
-	@handler captcha
-	get /captcha (SendCaptchaRequest) returns (string)
+	@handler captcha // 发送验证码
+	post /captcha (SendCaptchaRequest) returns (string)
 
-	@handler loginPassword // 密码登录
-	post /loginPassword (LoginRequest) returns (LoginResponse)
-
-	@handler loginCode // 验证码登录
-	post /loginCode (LoginCodeRequest) returns (LoginResponse)
+	@handler login // 登录,type 区分密码/验证码登录
+	post /login (LoginRequest) returns (LoginResponse)
 
 	@handler register // 用户注册
-	post /register (UserRegisterRequest) returns (LoginResponse)
+	post /users (UserRegisterRequest) returns (LoginResponse)
 
 	@handler logout // 退出登录
 	post /logout (UserIdRequest)
 
-	@handler userInfo // 获取用户信息
-	get /user/info (UserIdRequest) returns (UserInfoResponse)
+	@handler userInfo // 获取用户信息 UserIdRequest
+	get /users/:userId (UserIdPathRequest) returns (UserInfoResponse)
 
-	@handler updatePassword // 更新用户密码
-	post /updatePassword (UpdatePasswordRequest)
+	@handler updatePassword // 修改密码
+	put /password (UpdatePasswordRequest)
 
-	@handler refreshUri
+	@handler updateAvatar // 更新头像
+	put /avatar (UpdateAvatarRequest)
+
+	@handler getUploadUrl // 生成MinIO预签名上传URL和拼接下载URL
+	get /upload-url (GetUploadURLRequest) returns (UploadURLResponse)
+
+	@handler refreshUri // TODO: 用途不明,建议确认后删除或改名
 	get /refreshUri (UserIdRequest)
 
-	@handler getUploadUrl //生成MinIO预签名上传URL和拼接下载URL
-	get /uploadUrl (GetUploadURLRequest) returns (UploadURLResponse)
+	@handler getUserBalance // 查询余额
+	get /users/:userId/balance (UserIdPathRequest)
 
-	@handler updateAvatar
-	post /avatar (UpdateAvatarRequest)
+	@handler getBalanceDetail // 余额明细
+	get /users/:userId/balance/records (BalanceDetailRequest)
 
-	@handler getUserBalance
-	get /balance/:userId (UserIdPathRequest)
-
-	@handler getBalanceDetail
-	get /balance/detail/:userId (BalanceDetailRequest)
-
-	@handler refreshToken
+	@handler refreshToken // 刷新token
 	post /auth/refresh (RefreshTokenRequest) returns (string)
 }
 

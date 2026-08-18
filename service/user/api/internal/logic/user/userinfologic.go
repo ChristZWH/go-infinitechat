@@ -26,7 +26,7 @@ func NewUserInfoLogic(ctx context.Context, svcCtx *svc.ServiceContext) *UserInfo
 	}
 }
 
-func (l *UserInfoLogic) UserInfo(req *types.UserIdRequest) (resp *types.UserInfoResponse, err error) {
+func (l *UserInfoLogic) UserInfo(req *types.UserIdPathRequest) (resp *types.UserInfoResponse, err error) {
 	// todo: add your logic here and delete this line
 
 	return
