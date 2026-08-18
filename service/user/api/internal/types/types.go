@@ -4,7 +4,7 @@
 package types
 
 type BalanceDetailRequest struct {
-	UserId   string `json:"userId" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	UserId   string `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 	PageNum  int64  `json:"pageNum,default=1" form:"pageNum,default=1"`
 	PageSize int64  `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"`
 }
@@ -15,7 +15,7 @@ type GetUploadURLRequest struct {
 
 type LoginCodeRequest struct {
 	Account string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
-	Code    string `json:"code" form:"code,optional" validate:"required" msg:"验证码不能为空"`
+	Code    string `json:"code" form:"code,optional" validate:"required" msg:"required=验证码不能为空"`
 }
 
 type LoginRequest struct {
@@ -41,32 +41,32 @@ type RefreshTokenRequest struct {
 }
 
 type SendCaptchaRequest struct {
-	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空，min=账号长度在5到10之间，max=账号长度在5到10之间"`
+	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空，min=账号长度在5到20之间，max=账号长度在5到20之间"`
 }
 
 type UpdateAvatarRequest struct {
-	Url    string `json:"url" form:"url,optional" validate:"required" msg:"required=url不能为空"`
+	URL    string `json:"url" form:"url,optional" validate:"required" msg:"required=url不能为空"`
 	UserId int64  `json:"userId" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 }
 
 type UpdatePasswordRequest struct {
 	Account         string `json:"account" form:"account,optional" validate:"required" msg:"required=账号不能为空"`
-	Password        string `json:"password" form:"password,optional" validate:"required" msg:"密码不能为空"`
-	ConfirmPassword string `json:"confirmPassword" form:"confirmPassword,optional" validate:"required" msg:"确认密码不能为空"`
-	Code            string `json:"code" form:"code,optional" validate:"required" msg:"验证码不能为空"`
+	Password        string `json:"password" form:"password,optional" validate:"required" msg:"required=密码不能为空"`
+	ConfirmPassword string `json:"confirmPassword" form:"confirmPassword,optional" validate:"required" msg:"required=确认密码不能为空"`
+	Code            string `json:"code" form:"code,optional" validate:"required" msg:"required=验证码不能为空"`
 }
 
 type UploadURLResponse struct {
-	UpLoadURL   string `json:"uploadUrl"`
-	DownLoadURL string `json:"downloadUrl"`
+	UploadURL   string `json:"uploadUrl"`
+	DownloadURL string `json:"downloadUrl"`
 }
 
 type UserIdPathRequest struct {
-	UserId string `json:"userId" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	UserId string `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 }
 
 type UserIdRequest struct {
-	UserId int64 `json:"userId" form:"userId,optional" validate:"required" msg:"用户ID不能为空"`
+	UserId int64 `json:"userId" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 }
 
 type UserInfoResponse struct {

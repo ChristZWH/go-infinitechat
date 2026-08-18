@@ -26,7 +26,7 @@ func NewGetUploadUrlLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetU
 	}
 }
 
-func (l *GetUploadUrlLogic) GetUploadUrl(req *types.GetUploadUrl) (resp *types.UploadUrlResponse, err error) {
+func (l *GetUploadUrlLogic) GetUploadUrl(req *types.GetUploadURLRequest) (resp *types.UploadURLResponse, err error) {
 	// todo: add your logic here and delete this line
 
 	return
