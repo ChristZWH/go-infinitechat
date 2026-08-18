@@ -17,11 +17,6 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 	server.AddRoutes(
 		[]rest.Route{
 			{
-				Method:  http.MethodGet,
-				Path:    "/UploadUrl",
-				Handler: user.GetUploadUrlHandler(serverCtx),
-			},
-			{
 				Method:  http.MethodPost,
 				Path:    "/auth/refresh",
 				Handler: user.RefreshTokenHandler(serverCtx),
@@ -75,6 +70,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Method:  http.MethodPost,
 				Path:    "/updatePassword",
 				Handler: user.UpdatePasswordHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/uploadUrl",
+				Handler: user.GetUploadUrlHandler(serverCtx),
 			},
 			{
 				Method:  http.MethodGet,

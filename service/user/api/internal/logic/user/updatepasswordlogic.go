@@ -26,7 +26,7 @@ func NewUpdatePasswordLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Up
 	}
 }
 
-func (l *UpdatePasswordLogic) UpdatePassword(req *types.UpdatePassword) error {
+func (l *UpdatePasswordLogic) UpdatePassword(req *types.UpdatePasswordRequest) error {
 	// todo: add your logic here and delete this line
 
 	return nil
