@@ -343,7 +343,7 @@ service user-api {
 	delete /users/:userId/friend/:receiveUserId (UserIdAndReceiveUserIdRequest)
 
 	@handler blockFriend // 拉黑好友
-	post /users/:userId/block/:receiveUserId (UserIdAndReceiveUserIdRequest)
+	put /users/:userId/block/:receiveUserId (UserIdAndReceiveUserIdRequest)
 
 	@handler unblockFriend // 取消拉黑好友
 	delete /users/:userId/block/:receiveUserId (UserIdAndReceiveUserIdRequest)
