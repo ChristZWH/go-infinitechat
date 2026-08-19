@@ -1,0 +1,31 @@
+// Code scaffolded by goctl. Safe to edit.
+// goctl 1.9.2
+
+package group
+
+import (
+	"net/http"
+
+	"github.com/zeromicro/go-zero/rest/httpx"
+	"go-infinitechat/service/user/api/internal/logic/group"
+	"go-infinitechat/service/user/api/internal/svc"
+	"go-infinitechat/service/user/api/internal/types"
+)
+
+func ExitGroupHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req types.GroupExitRequest
+		if err := httpx.Parse(r, &req); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
+
+		l := group.NewExitGroupLogic(r.Context(), svcCtx)
+		err := l.ExitGroup(&req)
+		if err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+		} else {
+			httpx.Ok(w)
+		}
+	}
+}

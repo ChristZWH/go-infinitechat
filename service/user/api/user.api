@@ -5,7 +5,7 @@ info (
 
 // SendCaptcha
 type SendCaptchaRequest {
-	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空，min=账号长度在5到20之间，max=账号长度在5到20之间"`
+	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空,min=账号长度在5到20之间,max=账号长度在5到20之间"`
 }
 
 // LoginRequest 登录请求,Type 区分登录方式: password=密码登录, code=验证码登录
@@ -96,30 +96,183 @@ type RefreshTokenRequest {
 	RefreshToken string `json:"refreshToken" form:"refreshToken,optional"`
 }
 
-// SearchUserRequest
+// SearchUserRequest 搜索用户请求
 type SearchUserRequest {
-	UserId int64 `json:"userId,optional" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	UserId  int64  `path:"userId,optional" json:"userId,optional" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 	KeyWord string `json:"keyWord" form:"keyWord,optional" validate:"required" msg:"required=查询关键词不能为空"`
 }
 
 // FriendDetailVO
 type FriendDetailVO {
-	NickName string `json:"nickName"`
-	Phone string `json:"phone"`
-	Email string `json:"email"`
-	Avatar string `json:"avatar"`
-	Gender string `json:"gender"`
+	NickName    string `json:"nickName"`
+	Phone       string `json:"phone"`
+	Email       string `json:"email"`
+	Avatar      string `json:"avatar"`
+	Gender      string `json:"gender"`
 	Description string `json:"description"`
-	FriendId int64 `json:"friendId"`
-	Status int64 `json:"status"`
-	SessionId int64 `json:"sessionId"`
+	FriendId    int64  `json:"friendId"`
+	Status      int64  `json:"status"`
+	SessionId   int64  `json:"sessionId"`
 }
 
+// GetFriendRequest 获取好友列表请求
 type GetFriendRequest {
-	UserId int64 `json:"userId,optional" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
-	KeyWord string `json:"keyWord" form:"keyWord,optional" validate:"required" msg:"required=查询关键词不能为空"`
-	PageNum int64 `json:"pageNum,optional,default=1" form:"pageNum,optional,default=1"`
-	PageSize int64 `json:"pageNum,optional,default=1" form:"pageNum,optional,default=1"`
+	UserId   int64  `path:"userId,optional" json:"userId,optional" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	KeyWord  string `json:"keyWord,optional" form:"keyWord,optional"` //查询关键字（可选，按昵称/手机号/邮箱过滤）
+	PageNum  int64  `json:"pageNum,default=1" form:"pageNum,default=1"`
+	PageSize int64  `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"`
+}
+
+// FriendListResponse 好友列表响应
+type FriendListResponse {
+	List  []FriendDetailVO `json:"list"` //好友列表
+	Total int64            `json:"total"` //好友总数
+}
+
+// SendFriendApplyRequest 发送好友申请请求
+type SendFriendApplyRequest {
+	UserId        int64  `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"` //发送者用户ID
+	ReceiveUserId int64  `path:"receiveUserId,optional" validate:"required" msg:"required=接收者用户ID不能为空"` //接收者用户ID
+	Msg           string `json:"msg" validate:"required" msg:"required=申请信息不能为空"` //申请信息
+}
+
+// FriendApplyVO 好友申请记录
+type FriendApplyVO {
+	UserId     int64  `json:"userId"` //申请发起人用户ID
+	Nickname   string `json:"nickname"` //申请发起人昵称
+	Avatar     string `json:"avatar"` //申请发起人头像
+	Msg        string `json:"msg"` //申请信息
+	Status     int32  `json:"status"` //申请状态 (0:待处理 1:通过 2:拒绝 3:已读)
+	CreateTime string `json:"createTime"` //申请时间
+}
+
+// FriendApplyListRequest 获取好友申请列表请求
+type FriendApplyListRequest {
+	UserId   int64 `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"` //用户ID
+	PageNum  int64 `json:"pageNum,default=1" form:"pageNum,default=1"` //当前页码（从 1 开始）
+	PageSize int64 `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"` //每页大小
+}
+
+// FriendApplyListResponse 好友申请列表响应
+type FriendApplyListResponse {
+	List  []FriendApplyVO `json:"list"` //申请列表
+	Total int64           `json:"total"` //申请总数
+}
+
+// ApplyCountResponse 未读好友申请数量响应
+type ApplyCountResponse {
+	Count int64 `json:"count"` //未读申请数量
+}
+
+// UserIdAndReceiveUserIdRequest 用户与好友的ID组合（删除好友/拉黑/取消拉黑共用）
+type UserIdAndReceiveUserIdRequest {
+	UserId        int64 `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"` //用户ID
+	ReceiveUserId int64 `path:"receiveUserId,optional" validate:"required" msg:"required=好友用户ID不能为空"` //好友用户ID
+}
+
+// ModifyFriendApplyStatusRequest 修改好友申请状态请求
+type ModifyFriendApplyStatusRequest {
+	UserId       int64   `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"` //用户ID
+	Status       int64   `path:"status,optional" validate:"required" msg:"required=状态不能为空"` //状态（1:通过 2:拒绝 3:已读）
+	ApplyUserIds []int64 `json:"applyUserIds" validate:"required" msg:"required=申请发起人ID列表不能为空"` //申请发起人用户ID列表
+}
+
+// GetFriendDetailRequest 获取好友详情请求
+type GetFriendDetailRequest {
+	UserId   int64 `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"` //用户ID
+	FriendId int64 `path:"friendId,optional" validate:"required" msg:"required=好友ID不能为空"` //好友ID
+}
+
+// CreateGroupRequest 创建群聊请求
+type CreateGroupRequest {
+	CreatorId int64   `json:"creatorId" validate:"required" msg:"required=创建者ID不能为空"` //创建者ID（服务端需校验与登录态一致）
+	Name      string  `json:"name,optional"` //群名称（可选，为空时自动生成）
+	MemberIds []int64 `json:"memberIds" validate:"required" msg:"required=成员ID列表不能为空"` //初始成员ID列表
+}
+
+// InviteGroupRequest 群聊邀请请求
+type InviteGroupRequest {
+	SessionId  int64   `json:"sessionId" validate:"required" msg:"required=会话ID不能为空"` //会话ID（群聊ID）
+	InviterId  int64   `json:"inviterId" validate:"required" msg:"required=邀请者ID不能为空"` //邀请者ID（服务端需校验与登录态一致且为群成员）
+	InviteeIds []int64 `json:"inviteeIds" validate:"required" msg:"required=被邀请者ID列表不能为空"` //被邀请者用户ID列表
+}
+
+// InviteGroupResponse 群聊邀请响应
+type InviteGroupResponse {
+	SuccessIds []int64 `json:"successIds"` //邀请成功的用户ID列表
+	FailedIds  []int64 `json:"failedIds"` //邀请失败的用户ID列表
+}
+
+// KickGroupMembersRequest 群聊踢人请求
+type KickGroupMembersRequest {
+	SessionId  int64   `json:"sessionId" validate:"required" msg:"required=会话ID不能为空"` //会话ID（群聊ID）
+	OperatorId int64   `json:"operatorId" validate:"required" msg:"required=操作者ID不能为空"` //操作者ID（服务端需校验为群主或管理员）
+	MemberIds  []int64 `json:"memberIds" validate:"required" msg:"required=成员ID列表不能为空"` //被踢成员用户ID列表
+}
+
+// KickGroupMembersResponse 群聊踢人响应
+type KickGroupMembersResponse {
+	SuccessIds []int64 `json:"successIds"` //成功踢出的成员ID列表
+}
+
+// GroupExitRequest 退出群聊请求
+type GroupExitRequest {
+	SessionId int64 `json:"sessionId" validate:"required" msg:"required=会话ID不能为空"` //会话ID（群聊ID）
+	UserId    int64 `json:"userId" validate:"required" msg:"required=用户ID不能为空"` //用户ID（服务端需校验与登录态一致）
+}
+
+// GroupMemberVO 群成员信息
+type GroupMemberVO {
+	UserId   int64  `json:"userId"` //用户ID
+	Nickname string `json:"nickname"` //昵称
+	Avatar   string `json:"avatar"` //头像URL
+	Role     int32  `json:"role"` //成员角色 (0:群主 1:管理员 2:普通成员)
+}
+
+// GroupMemberListResponse 群成员列表响应
+type GroupMemberListResponse {
+	List  []GroupMemberVO `json:"list"` //成员列表
+	Total int64           `json:"total"` //成员总数
+}
+
+// GetGroupMembersRequest 获取群聊成员请求
+type GetGroupMembersRequest {
+	SessionId int64 `path:"sessionId,optional" validate:"required" msg:"required=会话ID不能为空"` //会话ID（群聊ID）
+	PageNum   int64 `json:"pageNum,default=1" form:"pageNum,default=1"` //当前页码（从 1 开始）
+	PageSize  int64 `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"` //每页大小
+}
+
+// GetUserGroupsRequest 获取用户加入的所有群聊请求
+type GetUserGroupsRequest {
+	UserId   int64 `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"` //用户ID
+	PageNum  int64 `json:"pageNum,default=1" form:"pageNum,default=1"` //当前页码（从 1 开始）
+	PageSize int64 `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"` //每页大小
+}
+
+// GroupVO 群聊信息
+type GroupVO {
+	SessionId   int64  `json:"sessionId"` //会话ID（群聊ID）
+	Name        string `json:"name"` //群名称
+	Avatar      string `json:"avatar"` //群头像
+	MemberCount int32  `json:"memberCount"` //群成员数量
+	Role        int32  `json:"role"` //我在该群的成员角色 (0:群主 1:管理员 2:普通成员)
+}
+
+// GroupListResponse 群聊列表响应
+type GroupListResponse {
+	List  []GroupVO `json:"list"` //群聊列表
+	Total int64     `json:"total"` //群聊总数
+}
+
+// SessionIdPathRequest 会话ID路径参数请求
+type SessionIdPathRequest {
+	SessionId int64 `path:"sessionId,optional" validate:"required" msg:"required=会话ID不能为空"` //会话ID（群聊ID）
+}
+
+// GroupMemberCountResponse 群成员数量响应
+type GroupMemberCountResponse {
+	SessionId   int64 `json:"sessionId"` //会话ID（群聊ID）
+	MemberCount int32 `json:"memberCount"` //群成员数量
 }
 
 @server (
@@ -171,18 +324,62 @@ service user-api {
 	timeout: 10s // 该组路由的统一超时，覆盖全局配置
 )
 service user-api {
-	@handler SearchUser // 搜索用户（手机号或邮箱）
+	@handler searchUser // 搜索用户（手机号或邮箱）
 	get /users/:userId/search (SearchUserRequest) returns (FriendDetailVO)
-	
+
 	@handler getFriends // 获取联系人列表
-	get /users/:userId/friend () returns ()
+	get /users/:userId/friend (GetFriendRequest) returns (FriendListResponse)
+
+	@handler sendFriendRequest // 发送好友申请
+	post /users/:userId/friend/:receiveUserId (SendFriendApplyRequest)
+
+	@handler getApplyList // 获取好友申请列表
+	get /users/:userId/apply (FriendApplyListRequest) returns (FriendApplyListResponse)
+
+	@handler getUnreadApplyCount // 获取未读好友申请数量
+	get /users/:userId/apply/count (UserIdPathRequest) returns (ApplyCountResponse)
+
+	@handler deleteFriend // 删除好友
+	delete /users/:userId/friend/:receiveUserId (UserIdAndReceiveUserIdRequest)
+
+	@handler blockFriend // 拉黑好友
+	post /users/:userId/block/:receiveUserId (UserIdAndReceiveUserIdRequest)
+
+	@handler unblockFriend // 取消拉黑好友
+	delete /users/:userId/block/:receiveUserId (UserIdAndReceiveUserIdRequest)
+
+	@handler modifyFriendApplicationStatus // 修改好友申请状态
+	post /users/:userId/apply/:status (ModifyFriendApplyStatusRequest)
+
+	@handler getFriendDetail // 获取好友详情
+	get /users/:userId/friend/:friendId (GetFriendDetailRequest) returns (FriendDetailVO)
 }
 
 @server (
-	prefix: /api/group
-	group: /group
+	prefix:  /api/group
+	group:   group
 	timeout: 10s
 )
 service user-api {
-	
+	@handler createGroup // 创建群聊
+	post / (CreateGroupRequest)
+
+	@handler inviteGroup // 群聊邀请
+	post /invite (InviteGroupRequest) returns (InviteGroupResponse)
+
+	@handler kickGroupMembers // 群聊踢人
+	post /kick (KickGroupMembersRequest) returns (KickGroupMembersResponse)
+
+	@handler exitGroup // 退出群聊
+	post /exit (GroupExitRequest)
+
+	@handler getGroupMembers // 获取群聊成员
+	get /:sessionId/members (GetGroupMembersRequest) returns (GroupMemberListResponse)
+
+	@handler getUserGroups // 获取用户加入的所有群聊
+	get /users/:userId (GetUserGroupsRequest) returns (GroupListResponse)
+
+	@handler getGroupMemberCount // 获取群聊人数
+	get /:sessionId/count (SessionIdPathRequest) returns (GroupMemberCountResponse)
 }
+
