@@ -34,7 +34,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Handler: contact.GetUnreadApplyCountHandler(serverCtx),
 			},
 			{
-				Method:  http.MethodPost,
+				Method:  http.MethodPut,
 				Path:    "/users/:userId/block/:receiveUserId",
 				Handler: contact.BlockFriendHandler(serverCtx),
 			},
