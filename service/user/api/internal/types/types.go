@@ -3,14 +3,141 @@
 
 package types
 
+type ApplyCountResponse struct {
+	Count int64 `json:"count"` //未读申请数量
+}
+
 type BalanceDetailRequest struct {
 	UserId   string `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 	PageNum  int64  `json:"pageNum,default=1" form:"pageNum,default=1"`
 	PageSize int64  `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"`
 }
 
+type CreateGroupRequest struct {
+	CreatorId int64   `json:"creatorId" validate:"required" msg:"required=创建者ID不能为空"`  //创建者ID（服务端需校验与登录态一致）
+	Name      string  `json:"name,optional"`                                           //群名称（可选，为空时自动生成）
+	MemberIds []int64 `json:"memberIds" validate:"required" msg:"required=成员ID列表不能为空"` //初始成员ID列表
+}
+
+type FriendApplyListRequest struct {
+	UserId   int64 `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`                //用户ID
+	PageNum  int64 `json:"pageNum,default=1" form:"pageNum,default=1"`                                 //当前页码（从 1 开始）
+	PageSize int64 `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"` //每页大小
+}
+
+type FriendApplyListResponse struct {
+	List  []FriendApplyVO `json:"list"`  //申请列表
+	Total int64           `json:"total"` //申请总数
+}
+
+type FriendApplyVO struct {
+	UserId     int64  `json:"userId"`     //申请发起人用户ID
+	Nickname   string `json:"nickname"`   //申请发起人昵称
+	Avatar     string `json:"avatar"`     //申请发起人头像
+	Msg        string `json:"msg"`        //申请信息
+	Status     int32  `json:"status"`     //申请状态 (0:待处理 1:通过 2:拒绝 3:已读)
+	CreateTime string `json:"createTime"` //申请时间
+}
+
+type FriendDetailVO struct {
+	NickName    string `json:"nickName"`
+	Phone       string `json:"phone"`
+	Email       string `json:"email"`
+	Avatar      string `json:"avatar"`
+	Gender      string `json:"gender"`
+	Description string `json:"description"`
+	FriendId    int64  `json:"friendId"`
+	Status      int64  `json:"status"`
+	SessionId   int64  `json:"sessionId"`
+}
+
+type FriendListResponse struct {
+	List  []FriendDetailVO `json:"list"`  //好友列表
+	Total int64            `json:"total"` //好友总数
+}
+
+type GetFriendDetailRequest struct {
+	UserId   int64 `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`   //用户ID
+	FriendId int64 `path:"friendId,optional" validate:"required" msg:"required=好友ID不能为空"` //好友ID
+}
+
+type GetFriendRequest struct {
+	UserId   int64  `path:"userId,optional" json:"userId,optional" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	KeyWord  string `json:"keyWord,optional" form:"keyWord,optional"` //查询关键字（可选，按昵称/手机号/邮箱过滤）
+	PageNum  int64  `json:"pageNum,default=1" form:"pageNum,default=1"`
+	PageSize int64  `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"`
+}
+
+type GetGroupMembersRequest struct {
+	SessionId int64 `path:"sessionId,optional" validate:"required" msg:"required=会话ID不能为空"`             //会话ID（群聊ID）
+	PageNum   int64 `json:"pageNum,default=1" form:"pageNum,default=1"`                                 //当前页码（从 1 开始）
+	PageSize  int64 `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"` //每页大小
+}
+
 type GetUploadURLRequest struct {
 	FileName string `json:"fileName,optional" form:"fileName,optional" validate:"required" msg:"required=文件名不能为空"`
+}
+
+type GetUserGroupsRequest struct {
+	UserId   int64 `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`                //用户ID
+	PageNum  int64 `json:"pageNum,default=1" form:"pageNum,default=1"`                                 //当前页码（从 1 开始）
+	PageSize int64 `json:"pageSize,default=20,range=[1:100]" form:"pageSize,default=20,range=[1:100]"` //每页大小
+}
+
+type GroupExitRequest struct {
+	SessionId int64 `json:"sessionId" validate:"required" msg:"required=会话ID不能为空"` //会话ID（群聊ID）
+	UserId    int64 `json:"userId" validate:"required" msg:"required=用户ID不能为空"`    //用户ID（服务端需校验与登录态一致）
+}
+
+type GroupListResponse struct {
+	List  []GroupVO `json:"list"`  //群聊列表
+	Total int64     `json:"total"` //群聊总数
+}
+
+type GroupMemberCountResponse struct {
+	SessionId   int64 `json:"sessionId"`   //会话ID（群聊ID）
+	MemberCount int32 `json:"memberCount"` //群成员数量
+}
+
+type GroupMemberListResponse struct {
+	List  []GroupMemberVO `json:"list"`  //成员列表
+	Total int64           `json:"total"` //成员总数
+}
+
+type GroupMemberVO struct {
+	UserId   int64  `json:"userId"`   //用户ID
+	Nickname string `json:"nickname"` //昵称
+	Avatar   string `json:"avatar"`   //头像URL
+	Role     int32  `json:"role"`     //成员角色 (0:群主 1:管理员 2:普通成员)
+}
+
+type GroupVO struct {
+	SessionId   int64  `json:"sessionId"`   //会话ID（群聊ID）
+	Name        string `json:"name"`        //群名称
+	Avatar      string `json:"avatar"`      //群头像
+	MemberCount int32  `json:"memberCount"` //群成员数量
+	Role        int32  `json:"role"`        //我在该群的成员角色 (0:群主 1:管理员 2:普通成员)
+}
+
+type InviteGroupRequest struct {
+	SessionId  int64   `json:"sessionId" validate:"required" msg:"required=会话ID不能为空"`      //会话ID（群聊ID）
+	InviterId  int64   `json:"inviterId" validate:"required" msg:"required=邀请者ID不能为空"`     //邀请者ID（服务端需校验与登录态一致且为群成员）
+	InviteeIds []int64 `json:"inviteeIds" validate:"required" msg:"required=被邀请者ID列表不能为空"` //被邀请者用户ID列表
+}
+
+type InviteGroupResponse struct {
+	SuccessIds []int64 `json:"successIds"` //邀请成功的用户ID列表
+	FailedIds  []int64 `json:"failedIds"`  //邀请失败的用户ID列表
+}
+
+type KickGroupMembersRequest struct {
+	SessionId  int64   `json:"sessionId" validate:"required" msg:"required=会话ID不能为空"`   //会话ID（群聊ID）
+	OperatorId int64   `json:"operatorId" validate:"required" msg:"required=操作者ID不能为空"` //操作者ID（服务端需校验为群主或管理员）
+	MemberIds  []int64 `json:"memberIds" validate:"required" msg:"required=成员ID列表不能为空"` //被踢成员用户ID列表
+}
+
+type KickGroupMembersResponse struct {
+	SuccessIds []int64 `json:"successIds"` //成功踢出的成员ID列表
 }
 
 type LoginRequest struct {
@@ -33,12 +160,33 @@ type LoginResponse struct {
 	WeServiceURL string `json:"weServiceUrl"`
 }
 
+type ModifyFriendApplyStatusRequest struct {
+	UserId       int64   `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`   //用户ID
+	Status       int64   `path:"status,optional" validate:"required" msg:"required=状态不能为空"`     //状态（1:通过 2:拒绝 3:已读）
+	ApplyUserIds []int64 `json:"applyUserIds" validate:"required" msg:"required=申请发起人ID列表不能为空"` //申请发起人用户ID列表
+}
+
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refreshToken" form:"refreshToken,optional"`
 }
 
+type SearchUserRequest struct {
+	UserId  int64  `path:"userId,optional" json:"userId,optional" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	KeyWord string `json:"keyWord" form:"keyWord,optional" validate:"required" msg:"required=查询关键词不能为空"`
+}
+
 type SendCaptchaRequest struct {
-	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空，min=账号长度在5到20之间，max=账号长度在5到20之间"`
+	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空,min=账号长度在5到20之间,max=账号长度在5到20之间"`
+}
+
+type SendFriendApplyRequest struct {
+	UserId        int64  `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`           //发送者用户ID
+	ReceiveUserId int64  `path:"receiveUserId,optional" validate:"required" msg:"required=接收者用户ID不能为空"` //接收者用户ID
+	Msg           string `json:"msg" validate:"required" msg:"required=申请信息不能为空"`                       //申请信息
+}
+
+type SessionIdPathRequest struct {
+	SessionId int64 `path:"sessionId,optional" validate:"required" msg:"required=会话ID不能为空"` //会话ID（群聊ID）
 }
 
 type UpdateAvatarRequest struct {
@@ -56,6 +204,11 @@ type UpdatePasswordRequest struct {
 type UploadURLResponse struct {
 	UploadURL   string `json:"uploadUrl"`
 	DownloadURL string `json:"downloadUrl"`
+}
+
+type UserIdAndReceiveUserIdRequest struct {
+	UserId        int64 `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`          //用户ID
+	ReceiveUserId int64 `path:"receiveUserId,optional" validate:"required" msg:"required=好友用户ID不能为空"` //好友用户ID
 }
 
 type UserIdPathRequest struct {

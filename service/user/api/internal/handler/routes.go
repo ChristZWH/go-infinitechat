@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	contact "go-infinitechat/service/user/api/internal/handler/contact"
+	group "go-infinitechat/service/user/api/internal/handler/group"
 	user "go-infinitechat/service/user/api/internal/handler/user"
 	"go-infinitechat/service/user/api/internal/svc"
 
@@ -14,6 +16,105 @@ import (
 )
 
 func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/users/:userId/apply",
+				Handler: contact.GetApplyListHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/users/:userId/apply/:status",
+				Handler: contact.ModifyFriendApplicationStatusHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/users/:userId/apply/count",
+				Handler: contact.GetUnreadApplyCountHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/users/:userId/block/:receiveUserId",
+				Handler: contact.BlockFriendHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodDelete,
+				Path:    "/users/:userId/block/:receiveUserId",
+				Handler: contact.UnblockFriendHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/users/:userId/friend",
+				Handler: contact.GetFriendsHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/users/:userId/friend/:friendId",
+				Handler: contact.GetFriendDetailHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/users/:userId/friend/:receiveUserId",
+				Handler: contact.SendFriendRequestHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodDelete,
+				Path:    "/users/:userId/friend/:receiveUserId",
+				Handler: contact.DeleteFriendHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/users/:userId/search",
+				Handler: contact.SearchUserHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/api/contact"),
+		rest.WithTimeout(10000*time.Millisecond),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodPost,
+				Path:    "/",
+				Handler: group.CreateGroupHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/:sessionId/count",
+				Handler: group.GetGroupMemberCountHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/:sessionId/members",
+				Handler: group.GetGroupMembersHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/exit",
+				Handler: group.ExitGroupHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/invite",
+				Handler: group.InviteGroupHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/kick",
+				Handler: group.KickGroupMembersHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/users/:userId",
+				Handler: group.GetUserGroupsHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/api/group"),
+		rest.WithTimeout(10000*time.Millisecond),
+	)
+
 	server.AddRoutes(
 		[]rest.Route{
 			{
