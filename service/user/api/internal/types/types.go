@@ -59,7 +59,7 @@ type UploadURLResponse struct {
 }
 
 type UserIdPathRequest struct {
-	UserId string `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	UserId int64 `path:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
 }
 
 type UserIdRequest struct {

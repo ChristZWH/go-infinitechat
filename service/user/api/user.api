@@ -96,6 +96,32 @@ type RefreshTokenRequest {
 	RefreshToken string `json:"refreshToken" form:"refreshToken,optional"`
 }
 
+// SearchUserRequest
+type SearchUserRequest {
+	UserId int64 `json:"userId,optional" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	KeyWord string `json:"keyWord" form:"keyWord,optional" validate:"required" msg:"required=查询关键词不能为空"`
+}
+
+// FriendDetailVO
+type FriendDetailVO {
+	NickName string `json:"nickName"`
+	Phone string `json:"phone"`
+	Email string `json:"email"`
+	Avatar string `json:"avatar"`
+	Gender string `json:"gender"`
+	Description string `json:"description"`
+	FriendId int64 `json:"friendId"`
+	Status int64 `json:"status"`
+	SessionId int64 `json:"sessionId"`
+}
+
+type GetFriendRequest {
+	UserId int64 `json:"userId,optional" form:"userId,optional" validate:"required" msg:"required=用户ID不能为空"`
+	KeyWord string `json:"keyWord" form:"keyWord,optional" validate:"required" msg:"required=查询关键词不能为空"`
+	PageNum int64 `json:"pageNum,optional,default=1" form:"pageNum,optional,default=1"`
+	PageSize int64 `json:"pageNum,optional,default=1" form:"pageNum,optional,default=1"`
+}
+
 @server (
 	prefix:  /api/user
 	group:   user
@@ -139,3 +165,24 @@ service user-api {
 	post /auth/refresh (RefreshTokenRequest) returns (string)
 }
 
+@server (
+	prefix:  /api/contact //路由前缀
+	group:   contact //代码分组，生成的文件放在 contact/ 子目录，不配则全堆一起
+	timeout: 10s // 该组路由的统一超时，覆盖全局配置
+)
+service user-api {
+	@handler SearchUser // 搜索用户（手机号或邮箱）
+	get /users/:userId/search (SearchUserRequest) returns (FriendDetailVO)
+	
+	@handler getFriends // 获取联系人列表
+	get /users/:userId/friend () returns ()
+}
+
+@server (
+	prefix: /api/group
+	group: /group
+	timeout: 10s
+)
+service user-api {
+	
+}
