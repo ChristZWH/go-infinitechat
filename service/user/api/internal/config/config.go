@@ -24,10 +24,10 @@ type Config struct {
 	DataSourse string
 
 	Etcd struct {
-		Endpoints []string
-		Prefix    string
-		Register  string
-		PublicIp  string
+		Endpoints   []string
+		Prefix      string
+		RegisterKey string
+		PublicIp    string
 	}
 
 	Kafka struct {

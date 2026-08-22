@@ -1,0 +1,101 @@
+package common
+
+type ErrorCode struct {
+	Code    int
+	Message string
+	Cause   error
+}
+
+func (err ErrorCode) Error() string {
+	return err.Message
+}
+
+func (err ErrorCode) Unwrap() error {
+	return err.Cause
+}
+
+func WrapError(code int, message string, e error) ErrorCode {
+	return ErrorCode{Code: code, Message: message, Cause: e}
+}
+
+func newErrorCode(code int, message string) *ErrorCode {
+	return &ErrorCode{Code: code, Message: message}
+}
+
+// ============ 通用错误码（40xxx）============
+var (
+	ParamsError    = newErrorCode(40000, "请求参数错误")
+	NotLoginError  = newErrorCode(40100, "未登录")
+	NoAuthError    = newErrorCode(40101, "无权限")
+	TokenMissing   = newErrorCode(40102, "令牌缺失")
+	TokenExpired   = newErrorCode(40103, "令牌已过期")
+	TokenInvalid   = newErrorCode(40104, "令牌无效")
+	TokenMismatch  = newErrorCode(40105, "令牌与用户不匹配")
+	ForbiddenError = newErrorCode(40300, "禁止访问")
+	NotFoundError  = newErrorCode(40400, "请求数据不存在")
+)
+
+// ============ 系统错误码（50xxx）============
+var (
+	SystemError           = newErrorCode(50000, "系统内部异常")
+	OperationError        = newErrorCode(50001, "操作失败")
+	InvalidParameterError = newErrorCode(50003, "参数校验失败")
+	PleaseLogin           = newErrorCode(50004, "请先登录")
+	SameLoginConflict     = newErrorCode(50005, "账号已在其他地方登录")
+	SystemBusy            = newErrorCode(50008, "系统繁忙，请稍后重试")
+)
+
+// ============ 用户相关错误码（70xxx）============
+var (
+	PhoneEmailError    = newErrorCode(70000, "手机号/邮箱格式错误")
+	UserAlreadyExists  = newErrorCode(70001, "用户已存在")
+	UserNotExists      = newErrorCode(70002, "用户不存在")
+	RegisterError      = newErrorCode(70003, "注册失败")
+	LoginErrorCode     = newErrorCode(70004, "验证码错误")
+	LoginError         = newErrorCode(70005, "登录失败, 用户名或密码错误")
+	LoginPasswordError = newErrorCode(70006, "两次密码不一致")
+)
+
+// ============ WebSocket 参数错误码（90xxx）============
+var (
+	SignalTypeError    = newErrorCode(90000, "单聊消息必须指定接收者")
+	GroupTypeError     = newErrorCode(90001, "群聊消息不需要指定接收者")
+	InvalidToken       = newErrorCode(90003, "无效token，请重新登录")
+	UserEmailListEmpty = newErrorCode(90004, "用户邮箱列表为空，请检查用户服务是否正常或没有用户注册")
+)
+
+func ThrowIf(condition bool, err ErrorCode, causes ...error) {
+	if condition {
+		var e error
+		if len(causes) >= 0 {
+			e = causes[0]
+		}
+		panic(ErrorCode{Code: err.Code, Message: err.Message, Cause: e})
+	}
+}
+
+func ThrowIfMessage(condition bool, err ErrorCode, message string, causes ...error) {
+	if condition {
+		var e error
+		if len(causes) >= 0 {
+			e = causes[0]
+		}
+		panic(ErrorCode{Code: err.Code, Message: message, Cause: e})
+	}
+}
+
+func ThrowWithMessage(err ErrorCode, msg string, causes ...error) {
+	var e error
+	if len(causes) >= 0 {
+		e = causes[0]
+	}
+	panic(ErrorCode{Code: err.Code, Message: msg, Cause: e})
+}
+
+func Throw(err ErrorCode, causes ...error) {
+	var e error
+	if len(causes) >= 0 {
+		e = causes[0]
+	}
+	panic(ErrorCode{Code: err.Code, Message: err.Message, Cause: e})
+}
