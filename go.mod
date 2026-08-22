@@ -2,7 +2,10 @@ module go-infinitechat
 
 go 1.26.2
 
-require github.com/zeromicro/go-zero v1.10.3
+require (
+	github.com/zeromicro/go-zero v1.10.3
+	go.uber.org/zap v1.24.0
+)
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
@@ -44,6 +47,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
+	go.uber.org/multierr v1.9.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
