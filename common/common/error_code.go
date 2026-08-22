@@ -6,20 +6,22 @@ type ErrorCode struct {
 	Cause   error
 }
 
-func (err ErrorCode) Error() string {
-	return err.Message
+// 实现 error 接口
+func (e ErrorCode) Error() string {
+	return e.Message
 }
 
-func (err ErrorCode) Unwrap() error {
-	return err.Cause
+// 拿到真实原因
+func (e ErrorCode) Unwrap() error {
+	return e.Cause
 }
 
-func WrapError(code int, message string, e error) ErrorCode {
-	return ErrorCode{Code: code, Message: message, Cause: e}
+func WrapError(code ErrorCode, cause error) ErrorCode {
+	return ErrorCode{Code: code.Code, Message: code.Message, Cause: cause}
 }
 
-func newErrorCode(code int, message string) *ErrorCode {
-	return &ErrorCode{Code: code, Message: message}
+func newErrorCode(code int, message string) ErrorCode {
+	return ErrorCode{Code: code, Message: message}
 }
 
 // ============ 通用错误码（40xxx）============
@@ -64,38 +66,37 @@ var (
 	UserEmailListEmpty = newErrorCode(90004, "用户邮箱列表为空，请检查用户服务是否正常或没有用户注册")
 )
 
-func ThrowIf(condition bool, err ErrorCode, causes ...error) {
+func ThrowIf(condition bool, err ErrorCode, cause ...error) {
 	if condition {
-		var e error
-		if len(causes) >= 0 {
-			e = causes[0]
+		var c error
+		if len(cause) > 0 {
+			c = cause[0]
 		}
-		panic(ErrorCode{Code: err.Code, Message: err.Message, Cause: e})
+		panic(ErrorCode{Code: err.Code, Message: err.Message, Cause: c})
 	}
 }
 
-func ThrowIfMessage(condition bool, err ErrorCode, message string, causes ...error) {
+func ThrowIfWithMsg(condition bool, err ErrorCode, msg string, cause ...error) {
 	if condition {
-		var e error
-		if len(causes) >= 0 {
-			e = causes[0]
+		var c error
+		if len(cause) > 0 {
+			c = cause[0]
 		}
-		panic(ErrorCode{Code: err.Code, Message: message, Cause: e})
+		panic(ErrorCode{Code: err.Code, Message: msg, Cause: c})
 	}
 }
-
-func ThrowWithMessage(err ErrorCode, msg string, causes ...error) {
-	var e error
-	if len(causes) >= 0 {
-		e = causes[0]
+func ThrowWithMsg(err ErrorCode, msg string, cause ...error) {
+	var c error
+	if len(cause) > 0 {
+		c = cause[0]
 	}
-	panic(ErrorCode{Code: err.Code, Message: msg, Cause: e})
+	panic(ErrorCode{Code: err.Code, Message: msg, Cause: c})
 }
 
-func Throw(err ErrorCode, causes ...error) {
-	var e error
-	if len(causes) >= 0 {
-		e = causes[0]
+func Throw(err ErrorCode, cause ...error) {
+	var c error
+	if len(cause) > 0 {
+		c = cause[0]
 	}
-	panic(ErrorCode{Code: err.Code, Message: err.Message, Cause: e})
+	panic(ErrorCode{Code: err.Code, Message: err.Message, Cause: c})
 }
