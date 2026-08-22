@@ -3,8 +3,34 @@
 
 package config
 
-import "github.com/zeromicro/go-zero/rest"
+import (
+	"github.com/zeromicro/go-zero/core/stores/cache"
+	"github.com/zeromicro/go-zero/core/stores/redis"
+	"github.com/zeromicro/go-zero/rest"
+)
 
 type Config struct {
 	rest.RestConf
+	Redis redis.RedisConf
+
+	Cache cache.CacheConf `json:"cache,optional"`
+
+	Minio struct {
+		Url       string
+		AccessKey string
+		SecretKey string
+	}
+
+	DataSourse string
+
+	Etcd struct {
+		Endpoints []string
+		Prefix    string
+		Register  string
+		PublicIp  string
+	}
+
+	Kafka struct {
+		Brokers []string
+	}
 }
