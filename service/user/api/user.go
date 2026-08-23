@@ -33,10 +33,18 @@ func main() {
 	// 统一错误响应
 	httpx.SetErrorHandlerCtx(func(ctx context.Context, err error) (int, any) {
 		var e common.ErrorCode
-		if errors.As(err, &e) {
-			return http.StatusOK, utils.Fail(e)
+		if !errors.As(err, &e) {
+			// 未知错误：按服务器内部故障处理，对外脱敏
+			// 走到这里说明有代码违反了契约（logic 直接返回了裸错误），记日志方便排查
+			common.Errorf("未包装错误: %v", err)
+			return http.StatusInternalServerError, utils.Fail(common.SystemError)
 		}
-		return http.StatusOK, utils.FailWithCode(500, err.Error())
+		if e.Code >= 50000 {
+			// 服务器内部错误：真实 500，网关/监控可识别
+			return http.StatusInternalServerError, utils.Fail(e)
+		}
+		// 业务错误：200 + 业务码
+		return http.StatusOK, utils.Fail(e)
 	})
 	// 统一成功响应
 	httpx.SetOkHandler(func(ctx context.Context, data any) any {

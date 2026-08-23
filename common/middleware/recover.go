@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"go-infinitechat/common/common"
-	"go-infinitechat/common/utils"
 	"net/http"
+	"runtime/debug"
+
+	"go-infinitechat/common/common"
 
 	"github.com/zeromicro/go-zero/rest/httpx"
 )
@@ -12,19 +13,20 @@ func RecoverMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				if bizErr, ok := err.(common.ErrorCode); ok {
-					// 系统级错误 走 ErrorCtx，让user.go 的 SetErrorHandlerCtx 同一处理
-					if bizErr.Code >= 50000 {
-						httpx.ErrorCtx(r.Context(), w, bizErr)
-						return
-					}
-					// 业务错误，正常返回
-					httpx.OkJsonCtx(r.Context(), w, utils.Fail(bizErr))
+				bizErr, ok := err.(common.ErrorCode)
+				if !ok {
+					// 未知 panic：必须记堆栈（线上排查靠它），对外脱敏
+					common.Errorf("未知panic: %v\n%s", err, debug.Stack())
+					httpx.ErrorCtx(r.Context(), w, common.SystemError)
 					return
 				}
-
-				common.Errorf("服务器内部问题", err)
-				httpx.ErrorCtx(r.Context(), w, common.SystemError)
+				if bizErr.Code >= 50000 {
+					// 系统级错误记日志；业务错误是 Throw 抛出的正常流程，不记避免刷屏
+					common.Errorf("系统错误 %d: %v", bizErr.Code, err)
+				}
+				// 全部交给 SetErrorHandlerCtx 统一分类、统一格式
+				// 注意：不能走 OkJsonCtx，否则 SetOkHandler 会把错误体再包一层 Success
+				httpx.ErrorCtx(r.Context(), w, bizErr)
 			}
 		}()
 		next(w, r)
