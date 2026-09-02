@@ -17,11 +17,11 @@ func NewBaseResponse[T any](code int, data T, msg string) *BaseResponse[T] {
 }
 
 // NewBaseResponseFromErrorCode 通用错误响应构造器：code/message 取自 ErrorCode
-func NewBaseResponseFromErrorCode(err ErrorCode) *BaseErrorResponse {
+func NewBaseErrorResponseFromErrorCode(err ErrorCode) *BaseErrorResponse {
 	return &BaseErrorResponse{Code: err.Code, Message: err.Message}
 }
 
 // NewBaseResponseFromMessage 通用错误响应构造器：code/message 由调用方指定
-func NewBaseResponseFromMessage(code int, msg string) *BaseErrorResponse {
+func NewBaseErrorResponseFromMessage(code int, msg string) *BaseErrorResponse {
 	return &BaseErrorResponse{Code: code, Message: msg}
 }
