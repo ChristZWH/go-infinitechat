@@ -49,7 +49,6 @@ func (l *SendCaptchaLogic) SendCaptcha(req *types.SendCaptchaRequest) (resp stri
 	codeStr, err := l.svcCtx.Redis.Get(codeKey)
 	if err != nil && !errors.Is(err, redis.Nil) {
 		common.Errorf("从Redis获取验证码失败：%s", err.Error())
-		// common.ThrowWithMsg(common.RedisError, err.Error()) // Redis 有底层 err 应该包裹到common中，也就是下一行中
 		return "", common.WrapError(common.RedisError, err)
 	}
 
@@ -63,15 +62,22 @@ func (l *SendCaptchaLogic) SendCaptcha(req *types.SendCaptchaRequest) (resp stri
 		if codeStr != "" {
 			return constants.SmsSendFrequentlyMsg, nil
 		}
-		//发送邮箱验证码
-		emailErr := utils2.SendEmailCode(req.Account, code)
-		common.ThrowIfWithMsg(emailErr != nil, common.SystemError, "发送邮件验证码失败", emailErr)
+		//发送邮箱验证码（有底层 err → 记日志 + WrapError 返回）
+		// http://localhost:8104/api/user/sendCaptcha?account=3463991617@qq.com
+		// account 就是收信人地址
+		if emailErr := utils2.SendEmailCode(req.Account, code); emailErr != nil {
+			common.Errorf("发送邮件验证码失败：%s", emailErr)
+			return "", common.WrapError(common.SystemError, emailErr)
+		}
 	} else {
-		return common.PhoneEmailError.Message, common.PhoneEmailError
+		// 没有明确 error，直接 panic
+		common.Throw(common.PhoneEmailError)
 	}
-	//保存验证码到redis
-	redisErr := l.svcCtx.Redis.Setex(codeKey, code, constants.SmsExpireTime)
-	common.ThrowIfWithMsg(redisErr != nil, common.SystemError, "发送邮件验证码失败", redisErr)
+	//保存验证码到redis（有底层 err → 记日志 + WrapError 返回）
+	if redisErr := l.svcCtx.Redis.Setex(codeKey, code, constants.SmsExpireTime); redisErr != nil {
+		common.Errorf("保存验证码失败：%s", redisErr)
+		return "", common.WrapError(common.SystemError, redisErr)
+	}
 
 	common.Infof("发送验证码，账号：%s, 验证码：%s", req.Account, code[:3]+"***") // 打印日志(验证码脱敏)
 	return constants.SmsSendSuccessMsg, nil
