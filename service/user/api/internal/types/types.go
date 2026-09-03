@@ -176,7 +176,7 @@ type SearchUserRequest struct {
 }
 
 type SendCaptchaRequest struct {
-	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空,min=账号长度在5到20之间,max=账号长度在5到20之间"`
+	Account string `json:"account,optional" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空,min=账号长度在5到20之间,max=账号长度在5到20之间"`
 }
 
 type SendFriendApplyRequest struct {

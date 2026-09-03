@@ -5,7 +5,7 @@ info (
 
 // SendCaptcha
 type SendCaptchaRequest {
-	Account string `json:"account" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空,min=账号长度在5到20之间,max=账号长度在5到20之间"`
+	Account string `json:"account,optional" form:"account,optional" validate:"required,min=5,max=20" msg:"required=账号不能为空,min=账号长度在5到20之间,max=账号长度在5到20之间"`
 }
 
 // LoginRequest 登录请求,Type 区分登录方式: password=密码登录, code=验证码登录
@@ -276,13 +276,13 @@ type GroupMemberCountResponse {
 }
 
 @server (
-	prefix:  /api/user
-	group:   user
-	timeout: 10s
+	prefix:  /api/user // 路由前缀
+	group:   user // 代码分组，生成的文件放在 user/ 子目录下，不配则全堆在一起
+	timeout: 10s // 该路由组统一配置超时时间，覆盖全局配置
 )
 service user-api {
-	@handler captcha // 发送验证码
-	post /captcha (SendCaptchaRequest) returns (string)
+	@handler sendCaptcha // 发送验证码
+	get /sendCaptcha (SendCaptchaRequest) returns (string)
 
 	@handler login // 登录,type 区分密码/验证码登录
 	post /login (LoginRequest) returns (LoginResponse)

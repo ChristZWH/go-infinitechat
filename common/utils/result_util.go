@@ -13,7 +13,7 @@ func Fail(err common.ErrorCode) *common.BaseErrorResponse {
 	return common.NewBaseErrorResponseFromErrorCode(err)
 }
 
-// FailWithCode 错误响应：用于没有 ErrorCode 封装的场景，code/message 由调用方指定
+// FailWithCode 错误响应：用于没有 ErrorCode 封装的场景，code、message 由调用方指定
 func FailWithCode(code int, message string) *common.BaseErrorResponse {
 	return common.NewBaseErrorResponseFromMessage(code, message)
 }
