@@ -21,6 +21,7 @@ func SendEmailCode(targetEmail, authCode string) error {
 		"\r\n" +
 		body + "\r\n")
 
+	// 登录用户名、登录凭证、登录哪台服务器
 	auth := smtp.PlainAuth("", constants.EmailUserName, constants.EmailPassword, constants.EmailHostName)
 
 	tlsConfig := &tls.Config{
