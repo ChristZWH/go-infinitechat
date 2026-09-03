@@ -43,6 +43,8 @@ var (
 var (
 	SystemError    = newErrorCode(50000, "系统内部异常")
 	OperationError = newErrorCode(50001, "操作失败") // 系统级操作失败（如写库失败）的兜底
+	RedisError     = newErrorCode(50002, "Redis启动错误")
+	MysqlError     = newErrorCode(50003, "Mysql启动错误")
 	SystemBusy     = newErrorCode(50008, "系统繁忙，请稍后重试")
 )
 

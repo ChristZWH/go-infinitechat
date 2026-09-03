@@ -129,11 +129,6 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 			{
 				Method:  http.MethodPost,
-				Path:    "/captcha",
-				Handler: user.CaptchaHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodPost,
 				Path:    "/login",
 				Handler: user.LoginHandler(serverCtx),
 			},
@@ -151,6 +146,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Method:  http.MethodGet,
 				Path:    "/refreshUri",
 				Handler: user.RefreshUriHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/sendCaptcha",
+				Handler: user.SendCaptchaHandler(serverCtx),
 			},
 			{
 				Method:  http.MethodGet,
