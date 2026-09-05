@@ -25,6 +25,7 @@ type WsServerLocator struct {
 	ring []ringNode
 }
 
+// 全局只调用一次
 func NewWsServerLocator(endpints []string, prefix string) (*WsServerLocator, error) {
 	cli, err := clientv3.New(clientv3.Config{Endpoints: endpints})
 	if err != nil {
@@ -80,6 +81,7 @@ func (l *WsServerLocator) buildRing(addrs []string) {
 	l.ring = nodes
 }
 
+// 对外多次调用
 func (l *WsServerLocator) GetWsServerUri(userId string) string {
 	l.mu.RLock()
 	defer l.mu.Unlock()
