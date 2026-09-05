@@ -24,6 +24,7 @@ type ServiceContext struct {
 	Redis  *redis.Redis
 
 	WsServerLocator *service.WsServerLocator
+	SqlConn         sqlx.SqlConn
 
 	// 模型
 	ApplyFriendModel apply_friend.ApplyFriendModel
@@ -67,6 +68,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		Redis:  rds, // 添加 Redis 实例
 
 		WsServerLocator: locator,
+		SqlConn:         conn,
 
 		// 模型
 		ApplyFriendModel: applyFriendModel,
