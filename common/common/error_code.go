@@ -39,6 +39,17 @@ var (
 	SameLoginConflict = newErrorCode(40900, "账号已在其他地方登录") // 原 50005：409 冲突语义
 )
 
+// ============ 用户相关业务错误码（42xxx）============
+var (
+	PhoneEmailError       = newErrorCode(42000, "手机号/邮箱格式错误")
+	UserAlreadyExists     = newErrorCode(42001, "用户已存在")
+	UserNotExists         = newErrorCode(42002, "用户不存在")
+	RegisterError         = newErrorCode(42003, "注册失败")
+	CaptchaError          = newErrorCode(42004, "验证码错误") // 原 LoginErrorCode：原名与语义不符
+	LoginError            = newErrorCode(42005, "登录失败, 用户名或密码错误")
+	PasswordMismatchError = newErrorCode(42006, "两次密码不一致") // 原 LoginPasswordError：出现于注册/改密场景
+)
+
 // ============ 系统错误码（50xxx：内部故障，对外只给笼统提示，细节只进日志）============
 var (
 	SystemError         = newErrorCode(50000, "系统内部异常")
@@ -49,17 +60,6 @@ var (
 	PusherNotFoundError = newErrorCode(50009, "Pusher 未找到")
 	MarshalFailedError  = newErrorCode(50010, "序列化失败")
 	PushFailedError     = newErrorCode(50011, "Kafka 消息推送失败")
-)
-
-// ============ 用户相关错误码（70xxx）============
-var (
-	PhoneEmailError       = newErrorCode(70000, "手机号/邮箱格式错误")
-	UserAlreadyExists     = newErrorCode(70001, "用户已存在")
-	UserNotExists         = newErrorCode(70002, "用户不存在")
-	RegisterError         = newErrorCode(70003, "注册失败")
-	CaptchaError          = newErrorCode(70004, "验证码错误") // 原 LoginErrorCode：原名与语义不符
-	LoginError            = newErrorCode(70005, "登录失败, 用户名或密码错误")
-	PasswordMismatchError = newErrorCode(70006, "两次密码不一致") // 原 LoginPasswordError：出现于注册/改密场景
 )
 
 // ============ WebSocket 业务错误码（90xxx）============
