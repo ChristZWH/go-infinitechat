@@ -20,6 +20,10 @@ type (
 		InsertTx(ctx context.Context, data *BalanceLog) (sql.Result, error)
 		UpdateTx(ctx context.Context, data *BalanceLog) error
 		DeleteTx(ctx context.Context, balanceLogId int64) error
+		// 按用户ID分页查询，按创建时间倒序
+		FindPageByUserIdTx(ctx context.Context, userId int64, pageNum, pageSize int) ([]*BalanceLog, error)
+		// 统计用户的记录总数
+		CountByUserIdTx(ctx context.Context, userId int64) (int64, error)
 	}
 
 	customBalanceLogModel struct {
@@ -61,4 +65,27 @@ func (m *customBalanceLogModel) DeleteTx(ctx context.Context, balanceLogId int64
 		return err
 	}
 	return m.Delete(ctx, balanceLogId)
+}
+
+func (m *(customBalanceLogModel)) FindPageByUserIdTx(ctx context.Context, userId int64, pageNum, pageSize int) ([]*BalanceLog, error) {
+	offset := (pageNum - 1) * pageSize
+	query := fmt.Sprintf("select %s from %s where `user_id` = ? order by `created_time` desc limit ?, ?", balanceLogRows, m.table)
+
+	var resp []*BalanceLog
+	err := m.CachedConn.QueryRowsNoCacheCtx(ctx, &resp, query, userId, offset, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// CountByUserId 统计总数，用于分页计算
+func (m *customBalanceLogModel) CountByUserIdTx(ctx context.Context, userId int64) (int64, error) {
+	query := fmt.Sprintf("select count(*) from %s where `user_id` = ?", m.table)
+	var count int64
+	err := m.CachedConn.QueryRowNoCacheCtx(ctx, &count, query, userId)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }

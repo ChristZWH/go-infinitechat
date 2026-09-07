@@ -26,8 +26,6 @@ func NewSendFriendRequestLogic(ctx context.Context, svcCtx *svc.ServiceContext) 
 	}
 }
 
-func (l *SendFriendRequestLogic) SendFriendRequest(req *types.SendFriendApplyRequest) error {
-	// todo: add your logic here and delete this line
-
-	return nil
+func (l *SendFriendRequestLogic) SendFriendRequest(req *types.SendFriendApplyRequest) (resp bool, err error) {
+	return l.svcCtx.ApplyFriendServer.SendFriendRequest(l.ctx, req.UserId, req.ReceiveUserId, req.Msg) > 0, nil
 }

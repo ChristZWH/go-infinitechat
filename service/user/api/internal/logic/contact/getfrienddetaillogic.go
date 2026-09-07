@@ -5,6 +5,7 @@ package contact
 
 import (
 	"context"
+	"strconv"
 
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
@@ -27,7 +28,5 @@ func NewGetFriendDetailLogic(ctx context.Context, svcCtx *svc.ServiceContext) *G
 }
 
 func (l *GetFriendDetailLogic) GetFriendDetail(req *types.GetFriendDetailRequest) (resp *types.FriendDetailVO, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+	return l.svcCtx.FriendService.GetFriendDetails(l.ctx, strconv.FormatInt(req.UserId, 10), strconv.FormatInt(req.FriendId, 10)), nil
 }

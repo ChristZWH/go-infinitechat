@@ -20,6 +20,8 @@ type (
 		InsertTx(ctx context.Context, data *UserBalance) (sql.Result, error)
 		UpdateTx(ctx context.Context, data *UserBalance) error
 		DeleteTx(ctx context.Context, userBalanceId int64) error
+		DeductBalanceTx(ctx context.Context, userId, amount int64) (int64, error) // 返回 affected rows
+		AddBalanceTx(ctx context.Context, userId, amount int64) error
 	}
 
 	customUserBalanceModel struct {
@@ -61,4 +63,40 @@ func (m *customUserBalanceModel) DeleteTx(ctx context.Context, userBalanceId int
 		return err
 	}
 	return m.Delete(ctx, userBalanceId)
+}
+
+// 扣减余额，返回受影响行数（0 表示余额不足）
+func (m *customUserBalanceModel) DeductBalanceTx(ctx context.Context, userId, amount int64) (int64, error) {
+	query := fmt.Sprintf("UPDATE %s SET `balance` = `balance` - ?, `updateed_time` = NOW() WHERE `user_id` = ? AND `balance` >= ?", m.table)
+	if session := txctx.GetSession(ctx); session != nil {
+		result, err := session.ExecCtx(ctx, query, amount, userId, amount)
+		if err != nil {
+			return 0, err
+		}
+		return result.RowsAffected()
+	}
+	// 非事务时需要清理缓存
+	key := fmt.Sprintf("%s%v", cacheUserBalanceUserIdPrefix, userId)
+	result, err := m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (sql.Result, error) {
+		return conn.ExecCtx(ctx, query, amount, userId, amount)
+	}, key)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// 增加余额
+func (m *customUserBalanceModel) AddBalanceTx(ctx context.Context, userId, amount int64) error {
+	query := fmt.Sprintf("UPDATE %s SET `balance` = `balance` + ? WHERE `user_id` = ? ", m.table)
+	if session := txctx.GetSession(ctx); session != nil {
+		_, err := session.ExecCtx(ctx, query, amount, userId)
+		return err
+	}
+	// 非事务
+	key := fmt.Sprintf("%s%v", cacheUserBalanceUserIdPrefix, userId)
+	_, err := m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (sql.Result, error) {
+		return conn.ExecCtx(ctx, query, amount, userId)
+	}, key)
+	return err
 }

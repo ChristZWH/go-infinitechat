@@ -26,8 +26,7 @@ func NewGetUnreadApplyCountLogic(ctx context.Context, svcCtx *svc.ServiceContext
 	}
 }
 
-func (l *GetUnreadApplyCountLogic) GetUnreadApplyCount(req *types.UserIdPathRequest) (resp *types.ApplyCountResponse, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+func (l *GetUnreadApplyCountLogic) GetUnreadApplyCount(req *types.UserIdPathRequest) (resp map[string]int64, err error) {
+	count := l.svcCtx.ApplyFriendServer.GetUnreadCount(l.ctx, req.UserId)
+	return map[string]int64{"count": count}, nil
 }

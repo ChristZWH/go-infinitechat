@@ -7,10 +7,11 @@ import (
 	"go-infinitechat/common/common"
 	"net/http"
 
-	"github.com/zeromicro/go-zero/rest/httpx"
 	"go-infinitechat/service/user/api/internal/logic/contact"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
+
+	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
 func ModifyFriendApplicationStatusHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -22,11 +23,11 @@ func ModifyFriendApplicationStatusHandler(svcCtx *svc.ServiceContext) http.Handl
 		}
 
 		l := contact.NewModifyFriendApplicationStatusLogic(r.Context(), svcCtx)
-		err := l.ModifyFriendApplicationStatus(&req)
+		resp, err := l.ModifyFriendApplicationStatus(&req)
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 		} else {
-			httpx.Ok(w)
+			httpx.OkJsonCtx(r.Context(), w, resp)
 		}
 	}
 }
