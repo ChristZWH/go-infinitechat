@@ -5,8 +5,10 @@ package svc
 
 import (
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/kafka"
 	"go-infinitechat/service/user/api/internal/config"
 	"go-infinitechat/service/user/api/internal/service"
+	constants2 "go-infinitechat/service/user/api/internal/types/constants"
 	"go-infinitechat/service/user/model/apply_friend"
 	"go-infinitechat/service/user/model/balance_log"
 	"go-infinitechat/service/user/model/friend"
@@ -36,14 +38,21 @@ type ServiceContext struct {
 	UserSessionModel user_session.UserSessionModel
 
 	// Kafka 相关
+	KafkaPusherManager  *kafka.PusherManager
+	NotificationService *service.NotificationService
 
 	// service
-	UserService *service.UserService
+	UserService        *service.UserService
+	UserBalanceService *service.BalanceService
+	SessionService     *service.SessionService
+	UserSessionService *service.UserSessionService
+	FriendService      *service.FriendService
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
 	rds := redis.MustNewRedis(c.Redis) // 创建 Redis 实例
 
+	// model
 	conn := sqlx.NewMysql(c.DataSourse)
 	applyFriendModel := apply_friend.NewApplyFriendModel(conn, c.Cache)
 	balanceLogModel := balance_log.NewBalanceLogModel(conn, c.Cache)
@@ -60,8 +69,18 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		return nil
 	}
 
+	// 注册 Kafka
+	brokers := c.Kafka.Brokers
+	topics := constants2.AllKafkaTopics()
+	pusherManager := kafka.NewPusherManager(brokers, topics)
+
 	// service
 	userService := service.NewUserService(userModel, rds)
+	userBalanceService := service.NewBalanceService(userBalanceModel, rds)
+	sessionService := service.NewSessionService(sessionModel, rds)
+	userSessionService := service.NewUserSessionService(userSessionModel, rds, conn)
+	notificationService := service.NewNotificationService(pusherManager)
+	friendService := service.NewFriendService(userService, sessionService, userSessionService, notificationService, friendModel, applyFriendModel, conn, rds)
 
 	return &ServiceContext{
 		Config: c,
@@ -79,7 +98,15 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		UserBalanceModel: userBalanceModel,
 		UserSessionModel: userSessionModel,
 
+		// Kafka
+		KafkaPusherManager:  pusherManager,
+		NotificationService: notificationService,
+
 		// service
-		UserService: userService,
+		UserService:        userService,
+		UserBalanceService: userBalanceService,
+		SessionService:     sessionService,
+		UserSessionService: userSessionService,
+		FriendService:      friendService,
 	}
 }

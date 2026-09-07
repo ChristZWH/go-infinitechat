@@ -40,15 +40,15 @@ type FriendApplyVO struct {
 }
 
 type FriendDetailVO struct {
-	NickName    string `json:"nickName"`
-	Phone       string `json:"phone"`
-	Email       string `json:"email"`
-	Avatar      string `json:"avatar"`
-	Gender      string `json:"gender"`
-	Description string `json:"description"`
-	FriendId    int64  `json:"friendId"`
-	Status      int64  `json:"status"`
-	SessionId   int64  `json:"sessionId"`
+	UserId    string `json:"userId"`    //用户ID
+	Nickname  string `json:"nickname"`  //昵称
+	Avatar    string `json:"avatar"`    //头像URL
+	Email     string `json:"email"`     //邮箱
+	Phone     string `json:"phone"`     //手机号
+	Signature string `json:"signature"` //个性签名
+	Gender    int32  `json:"gender"`    //性别 (0:女 1:男 2:未知)
+	SessionId string `json:"sessionId"` //会话ID
+	Status    int32  `json:"status"`    //好友状态 (0:好友 1:拉黑 2:删除 -1:非好友)
 }
 
 type FriendListResponse struct {
@@ -148,6 +148,7 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
+	Account      string `json:"account"`
 	UserId       int64  `json:"userId"`
 	Nickname     string `json:"nickName,omitempty"`
 	Avatar       string `json:"avatar,omitempty"`

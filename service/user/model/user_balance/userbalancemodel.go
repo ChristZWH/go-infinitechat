@@ -1,6 +1,11 @@
 package user_balance
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
+	"go-infinitechat/common/model/txctx"
+
 	"github.com/zeromicro/go-zero/core/stores/cache"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
@@ -12,6 +17,9 @@ type (
 	// and implement the added methods in customUserBalanceModel.
 	UserBalanceModel interface {
 		userBalanceModel
+		InsertTx(ctx context.Context, data *UserBalance) (sql.Result, error)
+		UpdateTx(ctx context.Context, data *UserBalance) error
+		DeleteTx(ctx context.Context, userBalanceId int64) error
 	}
 
 	customUserBalanceModel struct {
@@ -24,4 +32,33 @@ func NewUserBalanceModel(conn sqlx.SqlConn, c cache.CacheConf, opts ...cache.Opt
 	return &customUserBalanceModel{
 		defaultUserBalanceModel: newUserBalanceModel(conn, c, opts...),
 	}
+}
+
+// 如果 ctx 中有事务 session 则走事务连接，否则走原来的 CachedConn
+func (m *customUserBalanceModel) InsertTx(ctx context.Context, data *UserBalance) (sql.Result, error) {
+	if session := txctx.GetSession(ctx); session != nil {
+		query := fmt.Sprintf("insert into %s (%s) values (?,?,?,?)", m.table, userBalanceRowsExpectAutoSet)
+		return session.ExecCtx(ctx, query, data.UserId, data.Balance, data.CreatedTime, data.UpdatedTime)
+	}
+	return m.Insert(ctx, data)
+}
+
+// 如果 ctx 中有事务 session 则走事务连接，否则走原来的 CachedConn
+func (m *customUserBalanceModel) UpdateTx(ctx context.Context, data *UserBalance) error {
+	if session := txctx.GetSession(ctx); session != nil {
+		query := fmt.Sprintf("update %s set %s where `user_id` = ?", m.table, userBalanceRowsWithPlaceHolder)
+		_, err := session.ExecCtx(ctx, query, data.Balance, data.CreatedTime, data.UpdatedTime, data.UserId)
+		return err
+	}
+	return m.Update(ctx, data)
+}
+
+// 如果 ctx 中有事务 session 则走事务连接，否则走原来的 CachedConn
+func (m *customUserBalanceModel) DeleteTx(ctx context.Context, userBalanceId int64) error {
+	if session := txctx.GetSession(ctx); session != nil {
+		query := fmt.Sprintf("delete from %s where `user_id` = ?", m.table)
+		_, err := session.ExecCtx(ctx, query, userBalanceId)
+		return err
+	}
+	return m.Delete(ctx, userBalanceId)
 }
