@@ -90,8 +90,8 @@ func (s *UserService) GetUserById(userId int64) (*user.User, error) {
 	return s.userModel.FindOne(context.Background(), userId)
 }
 
-func (s *UserService) UpdatePassword(u *user.User) {
-	err := s.userModel.Update(context.Background(), u)
+func (s *UserService) UpdatePassword(ctx context.Context, u *user.User) {
+	err := s.userModel.UpdatePasswordByUserId(ctx, u)
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "密码修改失败", err)
 }
 

@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"go-infinitechat/common/common"
+	commonconstants "go-infinitechat/common/model/constants"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 	"go-infinitechat/service/user/api/internal/types/constants"
@@ -53,7 +54,7 @@ func (l *LoginLogic) Login(req *types.LoginRequest) (resp *types.LoginResponse, 
 
 		twoToken := l.svcCtx.UserService.GetTwoToken(user.UserId)
 		wsServerUri := l.svcCtx.WsServerLocator.GetWsServerUri(strconv.FormatInt(user.UserId, 10))
-		l.svcCtx.Redis.Hset("wsServiceUri", strconv.FormatInt(user.UserId, 10), wsServerUri)
+		l.svcCtx.Redis.Hset(commonconstants.RedisWsServerUri, strconv.FormatInt(user.UserId, 10), wsServerUri)
 
 		return &types.LoginResponse{
 			UserId: user.UserId,
@@ -98,7 +99,7 @@ func (l *LoginLogic) Login(req *types.LoginRequest) (resp *types.LoginResponse, 
 
 		twoToken := l.svcCtx.UserService.GetTwoToken(user.UserId)
 		wsServerUri := l.svcCtx.WsServerLocator.GetWsServerUri(strconv.FormatInt(user.UserId, 10))
-		l.svcCtx.Redis.Hset("wsServiceUri", strconv.FormatInt(user.UserId, 10), wsServerUri)
+		l.svcCtx.Redis.Hset(commonconstants.RedisWsServerUri, strconv.FormatInt(user.UserId, 10), wsServerUri)
 
 		return &types.LoginResponse{
 			UserId: user.UserId,
