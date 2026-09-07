@@ -296,6 +296,7 @@ func (fs *FriendService) GetFriends(ctx context.Context, userId string, pageNum,
 			continue
 		}
 
+		// 筛选出指定好友
 		if key != "" {
 			nickName := nullToEmpty(u.Nickname)
 			phone := nullToEmpty(u.Phone)
@@ -311,7 +312,7 @@ func (fs *FriendService) GetFriends(ctx context.Context, userId string, pageNum,
 			status = rel.Status
 		}
 
-		// 查会话ID
+		// 查与当前好友的会话ID
 		sessionId := fs.findSessionIdBetweenUsers(ctx, uid, fid)
 
 		friendDTOList = append(friendDTOList, dto.FriendDTO{

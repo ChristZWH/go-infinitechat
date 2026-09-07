@@ -8,6 +8,7 @@ import (
 
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
+	"go-infinitechat/service/user/api/internal/types/dto"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -26,8 +27,6 @@ func NewGetUserBalanceLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Ge
 	}
 }
 
-func (l *GetUserBalanceLogic) GetUserBalance(req *types.UserIdPathRequest) error {
-	// todo: add your logic here and delete this line
-
-	return nil
+func (l *GetUserBalanceLogic) GetUserBalance(req *types.UserIdPathRequest) (dto.UserBalanceResponse, error) {
+	return l.svcCtx.UserBalanceService.GetUserBalance(req.UserId), nil
 }

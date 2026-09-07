@@ -5,6 +5,7 @@ package contact
 
 import (
 	"context"
+	"strconv"
 
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
@@ -27,7 +28,5 @@ func NewSearchUserLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Search
 }
 
 func (l *SearchUserLogic) SearchUser(req *types.SearchUserRequest) (resp *types.FriendDetailVO, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+	return l.svcCtx.FriendService.SearchUserByKey(l.ctx, strconv.FormatInt(req.UserId, 10), req.KeyWord), nil
 }

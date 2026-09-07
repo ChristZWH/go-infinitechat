@@ -5,11 +5,14 @@ package user
 
 import (
 	"context"
+	"errors"
 
+	"go-infinitechat/common/common"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
 	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 type UpdateAvatarLogic struct {
@@ -26,8 +29,12 @@ func NewUpdateAvatarLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Upda
 	}
 }
 
-func (l *UpdateAvatarLogic) UpdateAvatar(req *types.UpdateAvatarRequest) error {
-	// todo: add your logic here and delete this line
+func (l *UpdateAvatarLogic) UpdateAvatar(req *types.UpdateAvatarRequest) (bool, error) {
+	user, err := l.svcCtx.UserService.GetUserById(req.UserId)
+	// 区分"用户不存在"和系统错误：DB 故障不能返回 404
+	common.ThrowIf(err != nil && errors.Is(err, sqlx.ErrNotFound), common.SystemError, err)
+	common.ThrowIf(user == nil, common.NotFoundError)
 
-	return nil
+	l.svcCtx.UserService.UpdateAvatar(l.ctx, req.UserId, req.URL)
+	return true, nil
 }

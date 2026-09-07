@@ -6,8 +6,10 @@ package contact
 import (
 	"context"
 
+	dto2 "go-infinitechat/common/model/dto"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
+	"go-infinitechat/service/user/api/internal/types/dto"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -26,8 +28,7 @@ func NewGetApplyListLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetA
 	}
 }
 
-func (l *GetApplyListLogic) GetApplyList(req *types.FriendApplyListRequest) (resp *types.FriendApplyListResponse, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+// 获取好友申请列表
+func (l *GetApplyListLogic) GetApplyList(req *types.FriendApplyListRequest) (resp *dto2.PageResponse[dto.ApplyFriendDTO], err error) {
+	return l.svcCtx.ApplyFriendServer.GetReceivedRequestsWithUserInfo(l.ctx, req.UserId, int32(req.PageNum), int32(req.PageSize)), nil
 }

@@ -27,7 +27,7 @@ func NewNotificationService(pm *kafka.PusherManager) *NotificationService {
 	return &NotificationService{PusherManager: pm}
 }
 
-// 推送新会话通知
+// 推送新会话通知 userId为消息接收者
 func (ns *NotificationService) PushNewSession(ctx context.Context, senderId, userId, sessionId int64, sessionType int, notification dto.NewSessionNotificationDTO) {
 	message := dto.SystemNotificationMessage{
 		MessageId:   generateMessageId(),
@@ -46,7 +46,7 @@ func (ns *NotificationService) PushNewSession(ctx context.Context, senderId, use
 	ns.sendNotification(ctx, message, "新会话通知")
 }
 
-// 推送好友申请
+// 推送好友申请 userId 为通知接收者
 func (ns *NotificationService) PushNewApply(ctx context.Context, userId int64, notification dto.FriendApplicationNotificationDTO) {
 	senderId := notification.ApplyUserId
 	message := dto.SystemNotificationMessage{
@@ -66,7 +66,7 @@ func (ns *NotificationService) PushNewApply(ctx context.Context, userId int64, n
 	ns.sendNotification(ctx, message, "好友申请通知")
 }
 
-// 推送新群聊会话通知
+// 推送新群聊会话通知 userID为通知接收者
 func (ns *NotificationService) PushGroupNewSession(ctx context.Context, userId, sessionId int64, notification dto.NewGroupSessionNotificationDTO) {
 	groupType := constants2.SessionTypeGroup
 	message := dto.SystemNotificationMessage{
@@ -88,7 +88,7 @@ func (ns *NotificationService) PushGroupNewSession(ctx context.Context, userId, 
 	ns.sendNotification(ctx, message, "群组邀请通知")
 }
 
-// 推送群聊踢出通知
+// 推送群聊踢出通知 receiver为通知接收者
 func (ns *NotificationService) PushGroupKickNotification(ctx context.Context, receiverId, sessionId int64, notification dto.GroupKickNotificationDTO) {
 	groupType := constants2.SessionTypeGroup
 	message := dto.SystemNotificationMessage{
