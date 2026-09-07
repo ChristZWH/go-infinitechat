@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go-infinitechat/common/common"
+	commonconstants "go-infinitechat/common/model/constants"
 	"go-infinitechat/common/model/txctx"
 	"go-infinitechat/common/utils"
 	"go-infinitechat/service/user/api/internal/svc"
@@ -94,7 +95,7 @@ func (l *RegisterLogic) Register(req *types.UserRegisterRequest) (resp *types.Lo
 
 	twoToken := l.svcCtx.UserService.GetTwoToken(userId)
 	wsServiceUri := l.svcCtx.WsServerLocator.GetWsServerUri(strconv.FormatInt(userId, 10))
-	l.svcCtx.Redis.Hset("wsServerUri", strconv.FormatInt(userId, 10), wsServiceUri)
+	l.svcCtx.Redis.Hset(commonconstants.RedisWsServerUri, strconv.FormatInt(userId, 10), wsServiceUri)
 
 	return &types.LoginResponse{
 		UserId:       newUser.UserId,

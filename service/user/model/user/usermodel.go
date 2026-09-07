@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"go-infinitechat/common/model/txctx"
+	"strconv"
 
 	"github.com/zeromicro/go-zero/core/stores/cache"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
@@ -17,10 +18,11 @@ type (
 	// and implement the added methods in customUserModel.
 	UserModel interface {
 		userModel
-		UpdateAvatarByUserId(ctx context.Context, id int64, uri string) error
 		InsertTx(ctx context.Context, user *User) (sql.Result, error)
 		UpdateTx(ctx context.Context, user *User) error
 		DeleteTx(ctx context.Context, userId int64) error
+		UpdateAvatarByUserId(ctx context.Context, id int64, uri string) error
+		UpdatePasswordByUserId(ctx context.Context, data *User) error
 	}
 
 	customUserModel struct {
@@ -41,6 +43,18 @@ func (m *customUserModel) UpdateAvatarByUserId(ctx context.Context, id int64, ur
 		query := "UPDATE `user` SET `avatar` = ? WHERE `user_id` = ?"
 		return conn.ExecCtx(ctx, query, uri, id)
 	}, userUserIdKey)
+	return err
+}
+
+func (m *customUserModel) UpdatePasswordByUserId(ctx context.Context, data *User) error {
+	//如果想自定义sql操作，要注意go-zero的缓存问题。比如这个更新密码的操作，如果不清除缓存，那么登录等情况的时候会出现新密码无法登录，旧密码却可以登录
+	userEmailKey := cacheUserEmailPrefix + data.Email.String
+	userPhoneKey := cacheUserPhonePrefix + data.Phone.String
+	userUserIdKey := cacheUserUserIdPrefix + strconv.FormatInt(data.UserId, 10)
+	_, err := m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (sql.Result, error) {
+		query := "UPDATE `user` SET `password` = ? WHERE `user_id` = ?"
+		return conn.ExecCtx(ctx, query, data.Password, data.UserId)
+	}, userEmailKey, userPhoneKey, userUserIdKey)
 	return err
 }
 
