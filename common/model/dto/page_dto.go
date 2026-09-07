@@ -1,4 +1,4 @@
-package model
+package dto
 
 const MaxPageSize = 100
 
