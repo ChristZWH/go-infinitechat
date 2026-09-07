@@ -41,11 +41,14 @@ var (
 
 // ============ 系统错误码（50xxx：内部故障，对外只给笼统提示，细节只进日志）============
 var (
-	SystemError    = newErrorCode(50000, "系统内部异常")
-	OperationError = newErrorCode(50001, "操作失败") // 系统级操作失败（如写库失败）的兜底
-	RedisError     = newErrorCode(50002, "Redis启动错误")
-	MysqlError     = newErrorCode(50003, "Mysql启动错误")
-	SystemBusy     = newErrorCode(50008, "系统繁忙，请稍后重试")
+	SystemError         = newErrorCode(50000, "系统内部异常")
+	OperationError      = newErrorCode(50001, "操作失败") // 系统级操作失败（如写库失败）的兜底
+	RedisError          = newErrorCode(50002, "Redis启动错误")
+	MysqlError          = newErrorCode(50003, "Mysql启动错误")
+	SystemBusy          = newErrorCode(50008, "系统繁忙，请稍后重试")
+	PusherNotFoundError = newErrorCode(50009, "Pusher 未找到")
+	MarshalFailedError  = newErrorCode(50010, "序列化失败")
+	PushFailedError     = newErrorCode(50011, "Kafka 消息推送失败")
 )
 
 // ============ 用户相关错误码（70xxx）============

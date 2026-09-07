@@ -1,6 +1,11 @@
 package balance_log
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
+	"go-infinitechat/common/model/txctx"
+
 	"github.com/zeromicro/go-zero/core/stores/cache"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
@@ -12,6 +17,9 @@ type (
 	// and implement the added methods in customBalanceLogModel.
 	BalanceLogModel interface {
 		balanceLogModel
+		InsertTx(ctx context.Context, data *BalanceLog) (sql.Result, error)
+		UpdateTx(ctx context.Context, data *BalanceLog) error
+		DeleteTx(ctx context.Context, balanceLogId int64) error
 	}
 
 	customBalanceLogModel struct {
@@ -24,4 +32,33 @@ func NewBalanceLogModel(conn sqlx.SqlConn, c cache.CacheConf, opts ...cache.Opti
 	return &customBalanceLogModel{
 		defaultBalanceLogModel: newBalanceLogModel(conn, c, opts...),
 	}
+}
+
+// InsertTx 如果 ctx 中有事务 session 则走事务连接，否则走原来的 CachedConn
+func (m *customBalanceLogModel) InsertTx(ctx context.Context, data *BalanceLog) (sql.Result, error) {
+	if session := txctx.GetSession(ctx); session != nil {
+		query := fmt.Sprintf("insert into %s (%s) values (?, ?, ?, ?, ?, ?, ?)", m.table, balanceLogRowsExpectAutoSet)
+		return session.ExecCtx(ctx, query, data.BalanceLogId, data.UserId, data.Amount, data.Type, data.RelatedId, data.CreatedTime, data.UpdatedTime)
+	}
+	return m.Insert(ctx, data)
+}
+
+// UpdateTx 如果 ctx 中有事务 session 则走事务连接，否则走原来的 CachedConn
+func (m *customBalanceLogModel) UpdateTx(ctx context.Context, data *BalanceLog) error {
+	if session := txctx.GetSession(ctx); session != nil {
+		query := fmt.Sprintf("update %s set %s where `balance_log_id` = ?", m.table, balanceLogRowsWithPlaceHolder)
+		_, err := session.ExecCtx(ctx, query, data.UserId, data.Amount, data.Type, data.RelatedId, data.CreatedTime, data.UpdatedTime, data.BalanceLogId)
+		return err
+	}
+	return m.Update(ctx, data)
+}
+
+// DeleteTx 如果 ctx 中有事务 session 则走事务连接，否则走原来的 CachedConn
+func (m *customBalanceLogModel) DeleteTx(ctx context.Context, balanceLogId int64) error {
+	if session := txctx.GetSession(ctx); session != nil {
+		query := fmt.Sprintf("delete from %s where `balance_log_id` = ?", m.table)
+		_, err := session.ExecCtx(ctx, query, balanceLogId)
+		return err
+	}
+	return m.Delete(ctx, balanceLogId)
 }
