@@ -5,9 +5,13 @@ package user
 
 import (
 	"context"
+	"strconv"
 
+	"go-infinitechat/common/common"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
+	"go-infinitechat/service/user/api/internal/types/constants"
+	"go-infinitechat/service/user/api/internal/utils"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -27,7 +31,20 @@ func NewRefreshTokenLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Refr
 }
 
 func (l *RefreshTokenLogic) RefreshToken(req *types.RefreshTokenRequest) (resp string, err error) {
-	// todo: add your logic here and delete this line
+	refreshToken := req.RefreshToken
+	common.ThrowIf(refreshToken == "", common.ParamsError)
 
-	return
+	// 查 Redis 验证 Refresh Token
+	key := constants.RefreshTokenKeyPrefix + refreshToken
+	userIdStr, err := l.svcCtx.Redis.Get(key)
+	common.ThrowIf(err != nil || userIdStr == "", common.NotLoginError)
+
+	userId, _ := strconv.ParseInt(userIdStr, 10, 64)
+
+	// 生成新 Access Token
+	newAccessToken := utils.GenerateAccessToken(userId)
+
+	l.svcCtx.Redis.Setex(constants.AccessTokenKeyPrefix+newAccessToken, userIdStr, constants.AccessTokenExpireMinutes*60)
+
+	return newAccessToken, nil
 }

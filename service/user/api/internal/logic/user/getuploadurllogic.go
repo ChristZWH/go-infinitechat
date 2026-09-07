@@ -8,6 +8,7 @@ import (
 
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
+	"go-infinitechat/service/user/api/internal/utils"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -27,7 +28,10 @@ func NewGetUploadUrlLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetU
 }
 
 func (l *GetUploadUrlLogic) GetUploadUrl(req *types.GetUploadURLRequest) (resp *types.UploadURLResponse, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+	uploadUrl := utils.GetUploadUrl(l.ctx, utils.BucketName, req.FileName, utils.PictureExpireTime)
+	downLoadUrl := utils.GetDownloadUrl(utils.BucketName, req.FileName)
+	return &types.UploadURLResponse{
+		UploadURL:   uploadUrl,
+		DownloadURL: downLoadUrl,
+	}, nil
 }

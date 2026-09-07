@@ -6,6 +6,7 @@ package contact
 import (
 	"context"
 
+	"go-infinitechat/common/common"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -26,8 +27,8 @@ func NewModifyFriendApplicationStatusLogic(ctx context.Context, svcCtx *svc.Serv
 	}
 }
 
-func (l *ModifyFriendApplicationStatusLogic) ModifyFriendApplicationStatus(req *types.ModifyFriendApplyStatusRequest) error {
-	// todo: add your logic here and delete this line
-
-	return nil
+func (l *ModifyFriendApplicationStatusLogic) ModifyFriendApplicationStatus(req *types.ModifyFriendApplyStatusRequest) (interface{}, error) {
+	common.ThrowIfWithMsg(req.UserId <= 0, common.UserNotExists, "用户不存在")
+	common.ThrowIfWithMsg(len(req.ApplyUserIds) <= 0, common.UserNotExists, "用户不存在")
+	return l.svcCtx.ApplyFriendServer.ModifyApplicationStatus(l.ctx, req.UserId, req.ApplyUserIds, req.Status), nil
 }

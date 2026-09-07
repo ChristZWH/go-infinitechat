@@ -6,6 +6,7 @@ package contact
 import (
 	"context"
 
+	"go-infinitechat/common/common"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -26,8 +27,8 @@ func NewDeleteFriendLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Dele
 	}
 }
 
-func (l *DeleteFriendLogic) DeleteFriend(req *types.UserIdAndReceiveUserIdRequest) error {
-	// todo: add your logic here and delete this line
-
-	return nil
+func (l *DeleteFriendLogic) DeleteFriend(req *types.UserIdAndReceiveUserIdRequest) (bool, error) {
+	common.ThrowIfWithMsg(req.UserId <= 0, common.UserNotExists, "用户不存在")
+	common.ThrowIfWithMsg(req.ReceiveUserId <= 0, common.UserNotExists, "用户不存在")
+	return l.svcCtx.FriendService.DeleteFriend(l.ctx, req.UserId, req.ReceiveUserId), nil
 }
