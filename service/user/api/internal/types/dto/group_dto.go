@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 type CreateGroupResponse struct {
 	SessionId       string   `json:"sessionId"`
 	SessionName     string   `json:"sessionName"`
@@ -25,4 +27,14 @@ type UserGroupDTO struct {
 	Role        int64  `json:"role"`
 	MemberCount int    `json:"memberCount"`
 	CreatedTime string `json:"createdTime"`
+}
+
+type GroupRow struct {
+	SessionId   int64     `db:"session_id"`
+	Role        int64     `db:"role"`
+	CreatedTime time.Time `db:"created_time"`
+	Name        string    `db:"name"`
+	Avatar      string    `db:"avatar"`
+	OwnerId     int64     `db:"owner_id"`
+	MemberCount int64     `db:"member_count"`
 }
