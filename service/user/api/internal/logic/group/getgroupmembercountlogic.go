@@ -28,5 +28,5 @@ func NewGetGroupMemberCountLogic(ctx context.Context, svcCtx *svc.ServiceContext
 
 // 获取群聊人数
 func (l *GetGroupMemberCountLogic) GetGroupMemberCount(req *types.SessionIdPathRequest) (resp int, err error) {
-	return l.svcCtx.GroupService.GetGroupMenberCount(l.ctx, req.SessionId), nil
+	return l.svcCtx.GroupService.GetGroupMemberCount(l.ctx, req.SessionId), nil
 }
