@@ -53,7 +53,7 @@ func NewGroupService(
 	}
 }
 
-func (gs *GroupService) GetGroupMenberCount(ctx context.Context, sessionId int64) int {
+func (gs *GroupService) GetGroupMemberCount(ctx context.Context, sessionId int64) int {
 	common.ThrowIfWithMsg(sessionId <= 0, common.ParamsError, "会话ID不能为空")
 	var count int
 	query := "SELECT count(*) FROM `user_session` WHERE `session_id` = ? AND `status` = 0"
@@ -79,6 +79,9 @@ func (gs *GroupService) GetUserGroups(ctx context.Context, userId int64, pageNum
 	}
 
 	// 2. 分页查询（一条 SQL 拿全：session 信息 + 群主 + 成员数，避免 N+1）
+	if pageNum <= 0 {
+		pageNum = 1
+	}
 	offset := (pageNum - 1) * pageSize
 	var rows []dto.GroupRow
 	query := `SELECT us.session_id, us.role, us.created_time, s.name, s.avatar,
@@ -391,7 +394,7 @@ func (gs *GroupService) ExitGroup(ctx context.Context, req *types.GroupExitReque
 	return true
 }
 
-func (gs *GroupService) GetGroupMenbers(ctx context.Context, sessionId int64, pageNum, pageSize int32) *dto2.PageResponse[dto.GroupMemberDTO] {
+func (gs *GroupService) GetGroupMembers(ctx context.Context, sessionId int64, pageNum, pageSize int32) *dto2.PageResponse[dto.GroupMemberDTO] {
 	common.ThrowIfWithMsg(sessionId <= 0, common.ParamsError, "会话ID不能为空")
 
 	// 1. 查询总数
