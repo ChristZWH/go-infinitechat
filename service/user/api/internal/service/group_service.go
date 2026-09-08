@@ -386,7 +386,7 @@ func (gs *GroupService) GetGroupMenbers(ctx context.Context, sessionId int64, pa
 
 	// 1. 查询总数
 	var total int64
-	err := gs.SqlConn.QueryRowCtx(ctx, &total, "select count(*) form `user_session where `session_id` = ? and `state` = 0`", sessionId)
+	err := gs.SqlConn.QueryRowCtx(ctx, &total, "select count(*) from `user_session` where `session_id` = ? and `status` = 0`", sessionId)
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "查询群成员数量失败")
 
 	// 空数据直接返回
