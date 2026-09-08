@@ -26,8 +26,7 @@ func NewExitGroupLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ExitGro
 	}
 }
 
-func (l *ExitGroupLogic) ExitGroup(req *types.GroupExitRequest) error {
-	// todo: add your logic here and delete this line
-
-	return nil
+// 退群
+func (l *ExitGroupLogic) ExitGroup(req *types.GroupExitRequest) (bool, error) {
+	return l.svcCtx.GroupService.ExitGroup(l.ctx, req), nil
 }

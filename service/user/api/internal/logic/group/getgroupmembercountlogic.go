@@ -26,8 +26,7 @@ func NewGetGroupMemberCountLogic(ctx context.Context, svcCtx *svc.ServiceContext
 	}
 }
 
-func (l *GetGroupMemberCountLogic) GetGroupMemberCount(req *types.SessionIdPathRequest) (resp *types.GroupMemberCountResponse, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+// 获取群聊人数
+func (l *GetGroupMemberCountLogic) GetGroupMemberCount(req *types.SessionIdPathRequest) (resp int, err error) {
+	return l.svcCtx.GroupService.GetGroupMenberCount(l.ctx, req.SessionId), nil
 }

@@ -8,6 +8,7 @@ import (
 
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
+	"go-infinitechat/service/user/api/internal/types/dto"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -26,8 +27,7 @@ func NewCreateGroupLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Creat
 	}
 }
 
-func (l *CreateGroupLogic) CreateGroup(req *types.CreateGroupRequest) error {
-	// todo: add your logic here and delete this line
-
-	return nil
+// 创建群聊
+func (l *CreateGroupLogic) CreateGroup(req *types.CreateGroupRequest) (resp *dto.CreateGroupResponse, err error) {
+	return l.svcCtx.GroupService.CreateGroup(l.ctx, req), nil
 }
