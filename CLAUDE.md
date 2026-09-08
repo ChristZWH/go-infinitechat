@@ -7,3 +7,9 @@
 -  手机验证码登录暂为占位：loginlogic.go 的 code 分支里手机号写死 code == "123456"（发短信是 TODO），
    本项目是个人学习项目，暂时跳过；注意发送侧已把手机验证码存入 Redis（login_code_phone:<账号>），
    接入真实短信后把登录侧改成与邮箱分支一致：查 Redis 比对 + 成功后 Del
+   
+## 遗留问题（本次未处理，后续跟进）
+(service\user\api\internal\service\group_service.go)
+- GetGroupMembers / GetGroupMemberCount 无权限校验
+- `constants.MessageType` 命名与语义不符（实际表示群聊类型）
+- Invite/Kick/Exit 使用 Tx 后缀方法但未包裹事务
