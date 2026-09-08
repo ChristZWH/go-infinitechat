@@ -81,7 +81,7 @@ func (gs *GroupService) GetUserGroups(ctx context.Context, userId int64, pageNum
 	// 2.分页查询
 	offset := (pageNum - 1) * pageSize
 	var userSession []user_session.UserSession
-	query := `SELECT 
+	query := `SELECT us.user_id, us.session_id, us.role, us.status, us.created_time, us.updated_time
 	FROM user_session us INNER JOIN session s ON us.session_id = s.session_id
 	WHERE us.user_id = ? AND us.status = 0 AND s.type = 1
 	ORDER BY us.created_time DESC
