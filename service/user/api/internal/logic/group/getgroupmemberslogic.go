@@ -6,8 +6,10 @@ package group
 import (
 	"context"
 
+	dto2 "go-infinitechat/common/model/dto"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
+	"go-infinitechat/service/user/api/internal/types/dto"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -26,8 +28,7 @@ func NewGetGroupMembersLogic(ctx context.Context, svcCtx *svc.ServiceContext) *G
 	}
 }
 
-func (l *GetGroupMembersLogic) GetGroupMembers(req *types.GetGroupMembersRequest) (resp *types.GroupMemberListResponse, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+// 获取群聊成员
+func (l *GetGroupMembersLogic) GetGroupMembers(req *types.GetGroupMembersRequest) (resp *dto2.PageResponse[dto.GroupMemberDTO], err error) {
+	return l.svcCtx.GroupService.GetGroupMenbers(l.ctx, req.SessionId, int32(req.PageNum), int32(req.PageSize)), nil
 }

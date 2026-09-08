@@ -26,8 +26,7 @@ func NewInviteGroupLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Invit
 	}
 }
 
+// 邀请
 func (l *InviteGroupLogic) InviteGroup(req *types.InviteGroupRequest) (resp *types.InviteGroupResponse, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+	return l.svcCtx.GroupService.InviteGroup(l.ctx, req), nil
 }

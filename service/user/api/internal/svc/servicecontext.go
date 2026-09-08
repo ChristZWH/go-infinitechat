@@ -48,6 +48,7 @@ type ServiceContext struct {
 	UserSessionService *service.UserSessionService
 	FriendService      *service.FriendService
 	ApplyFriendServer  *service.ApplyFriendService
+	GroupService       *service.GroupService
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
@@ -83,6 +84,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	notificationService := service.NewNotificationService(pusherManager)
 	friendService := service.NewFriendService(userService, sessionService, userSessionService, notificationService, friendModel, applyFriendModel, conn, rds)
 	applyFriendServer := service.NewApplyFriendService(applyFriendModel, friendModel, friendService, userService, notificationService, rds, conn)
+	groupService := service.NewGroupService(userService, friendModel, sessionModel, userSessionModel, notificationService, conn)
 
 	return &ServiceContext{
 		Config: c,
@@ -111,5 +113,6 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		UserSessionService: userSessionService,
 		FriendService:      friendService,
 		ApplyFriendServer:  applyFriendServer,
+		GroupService:       groupService,
 	}
 }
