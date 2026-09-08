@@ -1,6 +1,28 @@
 Name: user.rpc
-ListenOn: 0.0.0.0:8080
+ListenOn: 0.0.0.0:8105   # RPC 监听端口（新端口，不和 api 的8104 冲突）
+
+# 注册到 etcd，其他服务通过 etcd 发现这个 rpc 服务
+# realtime 服务的 yaml 中配置 UserRpc.Etcd.Key = "user.rpc" 来发现
 Etcd:
   Hosts:
-  - 127.0.0.1:2379
+    - 127.0.0.1:2379
   Key: user.rpc
+
+# 数据库连接
+DataSourse: root:Zwh20050512#@tcp(localhost:3306)/infiniteChat?charset=utf8mb4&parseTime=True&loc=Local
+
+# Redis 缓存
+UserRedis:
+  Host: localhost:6379
+  Pass: ""
+  Type: node
+  
+Cache:
+  - Host: localhost:6379
+    Pass: ""
+    Type: node
+
+Log:
+  Mode: console
+  Stat: false
+  Level: error

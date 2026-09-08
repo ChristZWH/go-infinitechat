@@ -3,6 +3,7 @@ package logic
 import (
 	"context"
 
+	"go-infinitechat/common/common"
 	"go-infinitechat/service/user/rpc/internal/svc"
 	"go-infinitechat/service/user/rpc/user"
 
@@ -23,8 +24,32 @@ func NewValidateGroupMessageLogic(ctx context.Context, svcCtx *svc.ServiceContex
 	}
 }
 
+// 供其他微服务调用：验证群聊是否能发
 func (l *ValidateGroupMessageLogic) ValidateGroupMessage(in *user.ValidateGroupMessageReq) (*user.MessageValidateResp, error) {
-	// todo: add your logic here and delete this line
+	senderId := in.SenderId
+	sessionId := in.SessionId
 
-	return &user.MessageValidateResp{}, nil
+	// 1.验证发送者用户状态
+	sender, err := l.svcCtx.UserModel.FindOne(l.ctx, senderId)
+	if err != nil || sender == nil || sender.State != 0 {
+		return &user.MessageValidateResp{
+			Allowed:      false,
+			RejectReason: common.SenderDisabled.Message,
+			ErrorCode:    int32(common.SenderDisabled.Code),
+		}, nil
+	}
+
+	// 2.校验群成员资格
+	us, err := l.svcCtx.UserSessionModel.FindOne(l.ctx, sender.UserId, sessionId)
+	if err != nil || us == nil {
+		return &user.MessageValidateResp{
+			Allowed:      false,
+			RejectReason: common.NotGroupMember.Message,
+			ErrorCode:    int32(common.NotGroupMember.Code),
+		}, nil
+	}
+
+	return &user.MessageValidateResp{
+		Allowed: true,
+	}, nil
 }

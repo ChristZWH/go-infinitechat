@@ -23,8 +23,15 @@ func NewGetGroupMemberIdsLogic(ctx context.Context, svcCtx *svc.ServiceContext) 
 	}
 }
 
+// 供其他微服务调用：获取群聊所有成员的 userId 列表
 func (l *GetGroupMemberIdsLogic) GetGroupMemberIds(in *user.SessionIdReq) (*user.GroupMemberIdsResp, error) {
-	// todo: add your logic here and delete this line
+	resp, err := l.svcCtx.UserSessionModel.FindMemberIdsBySessionId(l.ctx, in.SessionId)
+	if err != nil {
+		logx.Errorf("查询群成员失败: sessionId=%d, err=%s", in.SessionId, err.Error())
+		return nil, err
+	}
 
-	return &user.GroupMemberIdsResp{}, nil
+	return &user.GroupMemberIdsResp{
+		UserIds: resp,
+	}, nil
 }
