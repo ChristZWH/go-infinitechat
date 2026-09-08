@@ -73,7 +73,7 @@ var (
 // RPC相关错误
 var (
 	NotFriend         = newErrorCode(91002, "对方不是好友")
-	BlockedByReceiver = newErrorCode(91002, "您已被拉黑")
+	BlockedByReceiver = newErrorCode(91003, "您已被拉黑")
 	FriendDeleted     = newErrorCode(91004, "好友已删除")
 	SenderDisabled    = newErrorCode(91006, "发送者状态异常")
 	ReceiverDisabled  = newErrorCode(91007, "接收者状态异常")
