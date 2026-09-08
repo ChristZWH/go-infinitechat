@@ -23,8 +23,24 @@ func NewBatchGetUserInfosLogic(ctx context.Context, svcCtx *svc.ServiceContext) 
 	}
 }
 
+// 供其他微服务调用：批量获取用户信息
 func (l *BatchGetUserInfosLogic) BatchGetUserInfos(in *user.BatchGetUserInfosReq) (*user.BatchGetUserInfosResp, error) {
-	// todo: add your logic here and delete this line
+	if len(in.UserIds) == 0 {
+		return &user.BatchGetUserInfosResp{}, nil
+	}
 
-	return &user.BatchGetUserInfosResp{}, nil
+	users := make([]*user.BatchUserInfoItem, 0, len(in.UserIds))
+	for _, item := range in.UserIds {
+		u, err := l.svcCtx.UserModel.FindOne(l.ctx, item)
+		if err == nil || u == nil {
+			continue
+		}
+		users = append(users, &user.BatchUserInfoItem{
+			UserId:   u.UserId,
+			Nickname: u.Nickname.String,
+			Avatar:   u.Avatar,
+		})
+	}
+
+	return &user.BatchGetUserInfosResp{Users: users}, nil
 }
