@@ -232,7 +232,15 @@ func (gs *GroupService) CreateGroup(ctx context.Context, req *types.CreateGroupR
 			}
 		}(mid)
 	}
-	return nil
+	return &dto.CreateGroupResponse{
+		SessionId:       strconv.FormatInt(sessionId, 10),
+		SessionName:     groupName,
+		SessionType:     constants.MessageType,
+		Avatar:          DefaultGroupAvatar,
+		CreatorId:       strconv.FormatInt(creatorId, 10),
+		MembersCount:    membersCount,
+		FailedMemberIds: failedIds,
+	}
 }
 
 func (gs *GroupService) InviteGroup(ctx context.Context, req *types.InviteGroupRequest) *types.InviteGroupResponse {
@@ -398,7 +406,7 @@ func (gs *GroupService) GetGroupMenbers(ctx context.Context, sessionId int64, pa
 	offset := (pageNum - 1) * pageSize
 	var userSession []user_session.UserSession
 	query := "select `user_id`,`session_id`,`role`,`status`,`created_time`,`updated_time` from `user_session` where `session_id` = ? and `status` = 0 order by `role` asc, `created_time` asc limit ?, ?"
-	err = gs.SqlConn.QueryRowCtx(ctx, &userSession, query, sessionId, offset, pageSize)
+	err = gs.SqlConn.QueryRowsCtx(ctx, userSession, query, sessionId, offset, pageSize)
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "查询群成员失败")
 
 	// 3. 组装 DTO
