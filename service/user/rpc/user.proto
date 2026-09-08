@@ -1,0 +1,78 @@
+syntax = "proto3";               // 声明用 proto3 语法，必须是文件第一个非注释行
+package user;                    // proto 的命名空间，防止不同文件的消息重名（如 user.SessionIdReq）
+option go_package = "./user";    // 告诉编译器生成的 Go 代码的包导入路径
+
+
+
+// 请求 / 响应
+message SessionIdReq {
+  int64 session_id = 1;
+}
+message GroupMemberIdsResp {
+  repeated int64 user_ids = 1;
+}
+
+
+
+message UserIdReq {
+  int64 user_id = 1;
+}
+message UserInfoResp {
+  int64 user_id = 1;
+  string nickname = 2;
+  string avatar  =3;
+}
+
+
+
+// 批量获取用户信息
+message BatchGetUserInfosReq {
+  repeated int64 user_ids = 1;
+}
+message BatchUserInfoItem {
+  int64 user_id = 1;
+  string nickname = 2;
+  string avatar = 3;
+}
+message BatchGetUserInfosResp {
+  repeated BatchUserInfoItem users = 1;
+}
+
+
+
+message UserSessionRoleReq {
+  int64 session_id = 1;
+  int64 user_id = 2;
+}
+message UserSessionRoleResp {
+  int32 Role = 1;
+}
+
+
+
+message ValidateSingleMessageReq {
+  int64 sender_id = 1;
+  int64 receiver_id = 2;
+  int64 session_id = 3;
+}
+message ValidateGroupMessageReq {
+  int64 sender_id = 1;
+  int64 session_id = 2;
+}
+message MessageValidateResp {
+  bool allowed = 1;
+  string reject_reason = 2;
+  int32 error_code = 3;
+}
+
+
+
+// rpc 服务
+service UserRpc {
+  rpc GetGroupMemberIds(SessionIdReq) returns (GroupMemberIdsResp);
+  rpc GetUserInfo(UserIdReq) returns (UserInfoResp);
+  rpc BatchGetUserInfos(BatchGetUserInfosReq) returns (BatchGetUserInfosResp);
+  rpc GetUserSessionRole(UserSessionRoleReq) returns (UserSessionRoleResp);
+  rpc ValidateSingleMessage(ValidateSingleMessageReq) returns (MessageValidateResp);
+  rpc ValidateGroupMessage(ValidateGroupMessageReq) returns (MessageValidateResp);
+}
