@@ -57,7 +57,7 @@ func (gs *GroupService) GetGroupMenberCount(ctx context.Context, sessionId int64
 	common.ThrowIfWithMsg(sessionId <= 0, common.ParamsError, "会话ID不能为空")
 	var count int
 	query := "SELECT count(*) FROM `user_session` WHERE `session_id` = ? AND `status` = 0"
-	err := gs.SqlConn.QueryRowCtx(ctx, count, query, sessionId)
+	err := gs.SqlConn.QueryRowCtx(ctx, &count, query, sessionId)
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "查询群成员数量失败", err)
 	return count
 }
@@ -108,7 +108,7 @@ func (gs *GroupService) GetUserGroups(ctx context.Context, userId int64, pageNum
 
 		// 查群成员数
 		var menberCount int
-		_ = gs.SqlConn.QueryRowCtx(ctx, menberCount, "select count(*) from `user_session` where `session_id` = ? and `status` = 0", us.SessionId)
+		_ = gs.SqlConn.QueryRowCtx(ctx, &menberCount, "select count(*) from `user_session` where `session_id` = ? and `status` = 0", us.SessionId)
 
 		list = append(list, dto.UserGroupDTO{
 			SessionId:   strconv.FormatInt(us.SessionId, 10),
