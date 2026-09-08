@@ -22,7 +22,7 @@ import (
 const (
 	RoleGroupOwner     = 0
 	RoleGroupAdmin     = 1
-	RoleGroupMenber    = 2
+	RoleGroupMember    = 2
 	DefaultGroupAvatar = "https://video.shanyangcode.com/image/default/A9C9C83CCCE043EC8253DB5D7545DCB4-6-2.png"
 )
 
@@ -202,7 +202,7 @@ func (gs *GroupService) CreateGroup(ctx context.Context, req *types.CreateGroupR
 			_, err := gs.UserSessionModel.InsertTx(ctx, &user_session.UserSession{
 				UserId:      mid,
 				SessionId:   sessionId,
-				Role:        RoleGroupMenber,
+				Role:        RoleGroupMember,
 				Status:      constants.StatusSuccess,
 				CreatedTime: time.Now(),
 				UpdatedTime: time.Now(),
@@ -275,7 +275,7 @@ func (gs *GroupService) InviteGroup(ctx context.Context, req *types.InviteGroupR
 		_, err := gs.UserSessionModel.InsertTx(ctx, &user_session.UserSession{
 			UserId:      mid,
 			SessionId:   sessionId,
-			Role:        RoleGroupMenber,
+			Role:        RoleGroupMember,
 			Status:      constants.StatusSuccess,
 			CreatedTime: time.Now(),
 			UpdatedTime: time.Now(),
@@ -351,7 +351,7 @@ func (gs *GroupService) KickGroupMembers(ctx context.Context, req *types.KickGro
 			continue
 		}
 		// 权限校验：群主可踢所有人，管理员只能踢普通成员
-		if opRole == RoleGroupOwner || (opRole == RoleGroupAdmin && ms.Role == RoleGroupMenber) {
+		if opRole == RoleGroupOwner || (opRole == RoleGroupAdmin && ms.Role == RoleGroupMember) {
 			err = gs.UserSessionModel.DeleteTx(ctx, mid, sessionId)
 			if err != nil {
 				continue
