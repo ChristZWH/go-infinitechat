@@ -377,7 +377,7 @@ func (fs *FriendService) deleteSessionRecords(ctx context.Context, userId, frien
 	WHERE us1.user_id = ? AND us2.user_id = ? AND s.type = 0`
 
 	if session := txctx.GetSession(ctx); session != nil {
-		_ = session.QueryRowCtx(ctx, &sessionIds, query, userId, friendId)
+		_ = session.QueryRowsCtx(ctx, &sessionIds, query, userId, friendId)
 		if len(sessionIds) > 0 {
 			for _, sid := range sessionIds {
 				_, _ = session.ExecCtx(ctx, "delete from `user_session` where `session_id` = ?", sid)
@@ -385,7 +385,7 @@ func (fs *FriendService) deleteSessionRecords(ctx context.Context, userId, frien
 			}
 		}
 	} else {
-		_ = conn.QueryRowCtx(ctx, &sessionIds, query, userId, friendId)
+		_ = conn.QueryRowsCtx(ctx, &sessionIds, query, userId, friendId)
 		if len(sessionIds) > 0 {
 			for _, sid := range sessionIds {
 				_, _ = session.ExecCtx(ctx, "delete from `user_session` where `session_id` = ?", sid)

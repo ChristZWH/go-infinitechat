@@ -26,8 +26,7 @@ func NewKickGroupMembersLogic(ctx context.Context, svcCtx *svc.ServiceContext) *
 	}
 }
 
+// 踢人
 func (l *KickGroupMembersLogic) KickGroupMembers(req *types.KickGroupMembersRequest) (resp *types.KickGroupMembersResponse, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+	return l.svcCtx.GroupService.KickGroupMembers(l.ctx, req), nil
 }
