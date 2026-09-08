@@ -57,7 +57,7 @@ func (gs *GroupService) GetGroupMenberCount(ctx context.Context, sessionId int64
 	common.ThrowIfWithMsg(sessionId <= 0, common.ParamsError, "会话ID不能为空")
 	var count int
 	query := "SELECT count(*) FROM `user_session` WHERE `session_id` = ? AND `status` = 0"
-	err := gs.SqlConn.QueryRowCtx(ctx, count, query, sessionId)
+	err := gs.SqlConn.QueryRowCtx(ctx, &count, query, sessionId)
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "查询群成员数量失败", err)
 	return count
 }
@@ -78,46 +78,34 @@ func (gs *GroupService) GetUserGroups(ctx context.Context, userId int64, pageNum
 		return dto2.NewPageResponse([]dto.UserGroupDTO{}, int(total), int(pageNum), int(pageSize))
 	}
 
-	// 2.分页查询
+	// 2. 分页查询（一条 SQL 拿全：session 信息 + 群主 + 成员数，避免 N+1）
 	offset := (pageNum - 1) * pageSize
-	var userSession []user_session.UserSession
-	query := `SELECT 
+	var rows []dto.GroupRow
+	query := `SELECT us.session_id, us.role, us.created_time, s.name, s.avatar,
+	(SELECT user_id FROM user_session WHERE session_id = us.session_id AND role = 0 LIMIT 1) AS owner_id,
+	(SELECT count(*) FROM user_session WHERE session_id = us.session_id AND status = 0) AS member_count
 	FROM user_session us INNER JOIN session s ON us.session_id = s.session_id
 	WHERE us.user_id = ? AND us.status = 0 AND s.type = 1
 	ORDER BY us.created_time DESC
 	LIMIT ?, ?`
-	err = gs.SqlConn.QueryRowsCtx(ctx, &userSession, query, userId, offset, pageSize)
-	common.ThrowIfWithMsg(err != nil, common.SystemError, "查询用户群聊列表失败")
+	err = gs.SqlConn.QueryRowsCtx(ctx, &rows, query, userId, offset, pageSize)
+	common.ThrowIfWithMsg(err != nil, common.SystemError, "查询用户群聊列表失败", err)
 
-	// 3.组装DTO
-	var list []dto.UserGroupDTO
-	for _, us := range userSession {
-		sess, err := gs.SessionModel.FindOne(ctx, us.SessionId)
-		if err != nil || sess == nil {
-			continue
-		}
-
-		// 查群主
+	// 3. 组装 DTO
+	list := make([]dto.UserGroupDTO, 0, len(rows))
+	for _, r := range rows {
 		creatorId := ""
-		var ownerUserId int64
-		_ = gs.SqlConn.QueryRowCtx(ctx, &ownerUserId, "select `user_id` from `user_session` where `session_id` = ? and `role` = 0 limit 1", us.SessionId)
-
-		if ownerUserId > 0 {
-			creatorId = strconv.FormatInt(ownerUserId, 10)
+		if r.OwnerId > 0 {
+			creatorId = strconv.FormatInt(r.OwnerId, 10)
 		}
-
-		// 查群成员数
-		var menberCount int
-		_ = gs.SqlConn.QueryRowCtx(ctx, menberCount, "select count(*) from `user_session` where `session_id` = ? and `status` = 0", us.SessionId)
-
 		list = append(list, dto.UserGroupDTO{
-			SessionId:   strconv.FormatInt(us.SessionId, 10),
-			SessionName: sess.Name,
-			Avatar:      sess.Avatar,
+			SessionId:   strconv.FormatInt(r.SessionId, 10),
+			SessionName: r.Name,
+			Avatar:      r.Avatar,
 			CreatorId:   creatorId,
-			Role:        us.Role,
-			MemberCount: menberCount,
-			CreatedTime: us.CreatedTime.Format("2006-01-02 15:04:05"),
+			Role:        r.Role,
+			MemberCount: int(r.MemberCount),
+			CreatedTime: r.CreatedTime.Format("2006-01-02 15:04:05"),
 		})
 	}
 
@@ -182,7 +170,7 @@ func (gs *GroupService) CreateGroup(ctx context.Context, req *types.CreateGroupR
 
 	// 事务开启：创建session + user_session
 	err = txctx.WithTransaction(ctx, gs.SqlConn, func(ctx context.Context) error {
-		gs.SessionModel.InsertTx(ctx, &session.Session{
+		if _, err := gs.SessionModel.InsertTx(ctx, &session.Session{
 			SessionId:   sessionId,
 			Name:        groupName,
 			Type:        constants.MessageType,
@@ -190,20 +178,25 @@ func (gs *GroupService) CreateGroup(ctx context.Context, req *types.CreateGroupR
 			Avatar:      DefaultGroupAvatar,
 			CreatedTime: time.Now(),
 			UpdatedTime: time.Now(),
-		})
+		}); err != nil {
+			return err
+		}
+
 		// 创建者 user_session(群主)
-		gs.UserSessionModel.InsertTx(ctx, &user_session.UserSession{
+		if _, err := gs.UserSessionModel.InsertTx(ctx, &user_session.UserSession{
 			UserId:      creatorId,
 			SessionId:   sessionId,
 			Role:        RoleGroupOwner,
 			Status:      constants.StatusSuccess,
 			CreatedTime: time.Now(),
 			UpdatedTime: time.Now(),
-		})
+		}); err != nil {
+			return err
+		}
 
 		// 成员session
 		for _, mid := range validIds {
-			gs.UserSessionModel.InsertTx(ctx, &user_session.UserSession{
+			_, err := gs.UserSessionModel.InsertTx(ctx, &user_session.UserSession{
 				UserId:      mid,
 				SessionId:   sessionId,
 				Role:        RoleGroupMenber,
@@ -211,6 +204,9 @@ func (gs *GroupService) CreateGroup(ctx context.Context, req *types.CreateGroupR
 				CreatedTime: time.Now(),
 				UpdatedTime: time.Now(),
 			})
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -223,7 +219,7 @@ func (gs *GroupService) CreateGroup(ctx context.Context, req *types.CreateGroupR
 		CreatorId: creatorId, MembersCount: membersCount,
 	}
 	for _, mid := range validIds {
-		defer func(uid int64) {
+		go func(uid int64) {
 			defer func() {
 				recover()
 			}()
@@ -232,7 +228,15 @@ func (gs *GroupService) CreateGroup(ctx context.Context, req *types.CreateGroupR
 			}
 		}(mid)
 	}
-	return nil
+	return &dto.CreateGroupResponse{
+		SessionId:       strconv.FormatInt(sessionId, 10),
+		SessionName:     groupName,
+		SessionType:     constants.MessageType,
+		Avatar:          DefaultGroupAvatar,
+		CreatorId:       strconv.FormatInt(creatorId, 10),
+		MembersCount:    membersCount,
+		FailedMemberIds: failedIds,
+	}
 }
 
 func (gs *GroupService) InviteGroup(ctx context.Context, req *types.InviteGroupRequest) *types.InviteGroupResponse {
@@ -248,9 +252,17 @@ func (gs *GroupService) InviteGroup(ctx context.Context, req *types.InviteGroupR
 	// 校验权限
 	gs.validatePermission(ctx, sessionId, inviterId)
 
+	// failedIds = 非好友 + 已在群内
 	var failedIds []int64
-	// 过滤好友
-	validIds := gs.filterFriends(ctx, inviterId, inviteeIds, nil)
+	var notFriend []string
+	// 过滤非好友
+	validIds := gs.filterFriends(ctx, inviterId, inviteeIds, &notFriend)
+	for _, s := range notFriend {
+		if id, err := strconv.ParseInt(s, 10, 64); err == nil {
+			failedIds = append(failedIds, id)
+		}
+	}
+
 	// 过滤已在群内的
 	validIds = gs.filterExistingMembers(ctx, sessionId, validIds, &failedIds)
 	common.ThrowIfWithMsg(len(validIds) == 0, common.OperationError, "没有有效的好友可加入群聊")
@@ -347,13 +359,11 @@ func (gs *GroupService) KickGroupMembers(ctx context.Context, req *types.KickGro
 
 	// 推送踢人通知
 	if len(successIds) > 0 && gs.NotificationService != nil {
-		kickedIds := make([]int64, 0, len(successIds))
-
-		for _, kid := range kickedIds {
+		for _, kid := range successIds {
 			go func(u int64) {
 				defer func() { recover() }()
 				gs.NotificationService.PushGroupKickNotification(ctx, u, sessionId, dto.GroupKickNotificationDTO{
-					MemberIds:  memberIds,
+					MemberIds:  successIds,
 					OperatorId: operatorId,
 				})
 			}(kid)
@@ -386,7 +396,7 @@ func (gs *GroupService) GetGroupMenbers(ctx context.Context, sessionId int64, pa
 
 	// 1. 查询总数
 	var total int64
-	err := gs.SqlConn.QueryRowCtx(ctx, &total, "select count(*) form `user_session where `session_id` = ? and `state` = 0`", sessionId)
+	err := gs.SqlConn.QueryRowCtx(ctx, &total, "select count(*) from `user_session` where `session_id` = ? and `status` = 0", sessionId)
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "查询群成员数量失败")
 
 	// 空数据直接返回
@@ -398,7 +408,7 @@ func (gs *GroupService) GetGroupMenbers(ctx context.Context, sessionId int64, pa
 	offset := (pageNum - 1) * pageSize
 	var userSession []user_session.UserSession
 	query := "select `user_id`,`session_id`,`role`,`status`,`created_time`,`updated_time` from `user_session` where `session_id` = ? and `status` = 0 order by `role` asc, `created_time` asc limit ?, ?"
-	err = gs.SqlConn.QueryRowCtx(ctx, &userSession, query, sessionId, offset, pageSize)
+	err = gs.SqlConn.QueryRowsCtx(ctx, &userSession, query, sessionId, offset, pageSize)
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "查询群成员失败")
 
 	// 3. 组装 DTO
@@ -412,10 +422,10 @@ func (gs *GroupService) GetGroupMenbers(ctx context.Context, sessionId int64, pa
 			UserId:   strconv.FormatInt(u.UserId, 10),
 			Nickname: u.Nickname.String,
 			Avatar:   u.Avatar,
-			Role:     u.Role,
+			Role:     us.Role,
 		})
 	}
 
 	// 4. 使用 NewPageResponse 构建分页响应（自动计算 Pages/HasNext/HasPrevious）
-	return dto2.NewPageResponseFromAll(list, int(pageNum), int(pageSize))
+	return dto2.NewPageResponse(list, int(total), int(pageNum), int(pageSize))
 }
