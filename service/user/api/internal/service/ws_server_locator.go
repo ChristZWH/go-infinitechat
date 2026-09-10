@@ -84,7 +84,7 @@ func (l *WsServerLocator) buildRing(addrs []string) {
 // 对外多次调用
 func (l *WsServerLocator) GetWsServerUri(userId string) string {
 	l.mu.RLock()
-	defer l.mu.Unlock()
+	defer l.mu.RUnlock()
 
 	if len(l.ring) == 0 {
 		return ""
@@ -94,7 +94,9 @@ func (l *WsServerLocator) GetWsServerUri(userId string) string {
 	idx := sort.Search(len(l.ring), func(i int) bool {
 		return l.ring[i].hash >= h
 	})
-	return fmt.Sprintf("ws://%s%s", l.ring[idx].addr, wsServerUri)
+	// 一致性哈希环：idx 可能等于 len(l.ring)（哈希值大于环上所有节点时），
+	// 取模回到环首，否则 l.ring[idx] 会越界 panic
+	return fmt.Sprintf("ws://%s%s", l.ring[idx%len(l.ring)].addr, wsServerUri)
 }
 
 func hashStr(s string) uint32 {
