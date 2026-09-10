@@ -20,7 +20,7 @@ type ServiceContext struct {
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
-	conn := sqlx.NewMysql(c.Database)
+	conn := sqlx.NewMysql(c.DataSourse)
 
 	userModel := user.NewUserModel(conn, c.Cache)
 	userSessionModel := user_session.NewUserSessionModel(conn, c.Cache)

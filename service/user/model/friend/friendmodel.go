@@ -69,14 +69,14 @@ func (m *customFriendModel) DeleteTx(ctx context.Context, id int64) error {
 
 func (m *customFriendModel) FindListByUserIdTx(ctx context.Context, userId int64) ([]*Friend, error) {
 	var resp []*Friend
-	query := fmt.Sprintf("select %s from %s where `user_id` = ? and `state` != 2 order by `created_time` desc", friendRows, m.table)
+	query := fmt.Sprintf("select %s from %s where `user_id` = ? and `status` != 2 order by `created_time` desc", friendRows, m.table)
 
 	if session := txctx.GetSession(ctx); session != nil {
-		err := session.QueryRowCtx(ctx, &resp, query, userId)
+		err := session.QueryRowsCtx(ctx, &resp, query, userId)
 		return resp, err
 	}
 
-	err := m.CachedConn.QueryRowNoCacheCtx(ctx, &resp, query, userId)
+	err := m.CachedConn.QueryRowsNoCacheCtx(ctx, &resp, query, userId)
 	return resp, err
 }
 

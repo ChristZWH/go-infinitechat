@@ -32,3 +32,4 @@ func RecoverMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 		next(w, r)
 	}
 }
+	// ============ 1. Redis ============

@@ -254,8 +254,8 @@ func (fs *FriendService) findSessionIdBetweenUsers(ctx context.Context, userId, 
 	var sessionId int64
 	// 查找的是 同时装着你和你朋友的会话ID
 	query := `SELECT us1.session_id FROM user_session us1
-	INNER JOIN user_session us2 ON us1.session_id = us2_session_id
-	INNER JOIN session s ON us1.session_id = s.session_id 
+	INNER JOIN user_session us2 ON us1.session_id = us2.session_id
+	INNER JOIN session s ON us1.session_id = s.session_id
 	WHERE us1.user_id = ? AND us2.user_id = ? AND s.type = 0
 	LIMIT 1`
 	err := conn.QueryRowCtx(ctx, &sessionId, query, userId, friendId)

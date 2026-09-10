@@ -9,7 +9,7 @@ Etcd:
   Key: user.rpc
 
 # 数据库连接
-DataSourse: root:Zwh20050512#@tcp(localhost:3306)/infiniteChat?charset=utf8mb4&parseTime=True&loc=Local
+DataSourse: root:Zwh20050512*@tcp(localhost:3306)/infiniteChat?charset=utf8mb4&parseTime=True&loc=Local
 
 # Redis 缓存
 UserRedis:
