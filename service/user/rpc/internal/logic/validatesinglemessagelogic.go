@@ -37,7 +37,7 @@ func (l *ValidateSingleMessageLogic) ValidateSingleMessage(in *user.ValidateSing
 
 	// 1. 校验发送者用户状态
 	sender, err := l.svcCtx.UserModel.FindOne(l.ctx, in.SenderId)
-	if err != nil || sender == nil || sender.State == 0 {
+	if err != nil || sender == nil || sender.State != 0 {
 		return &user.MessageValidateResp{
 			Allowed:      false,
 			RejectReason: common.SenderDisabled.Message,
@@ -47,7 +47,7 @@ func (l *ValidateSingleMessageLogic) ValidateSingleMessage(in *user.ValidateSing
 
 	// 2. 校验接收者用户状态
 	receiver, err := l.svcCtx.UserModel.FindOne(l.ctx, receiverId)
-	if err != nil || receiver == nil || sender.State == 0 {
+	if err != nil || receiver == nil || receiver.State != 0 {
 		return &user.MessageValidateResp{
 			Allowed:      false,
 			RejectReason: common.ReceiverDisabled.Message,
@@ -75,13 +75,17 @@ func (l *ValidateSingleMessageLogic) ValidateSingleMessage(in *user.ValidateSing
 	receiverStatus := l.getFriendStatusWithCache(receiverId, senderId)
 	if receiverStatus < 0 {
 		return &user.MessageValidateResp{
-			Allowed: false, RejectReason: "NOT_FRIEND", ErrorCode: 91002,
+			Allowed:      false,
+			RejectReason: common.NotFriend.Message,
+			ErrorCode:    int32(common.NotFoundError.Code),
 		}, nil
 	}
 
 	if receiverStatus == 1 {
 		return &user.MessageValidateResp{
-			Allowed: false, RejectReason: "BLOCKED_BY_RECEIVER", ErrorCode: 91003,
+			Allowed:      false,
+			RejectReason: common.BlockedByReceiver.Message,
+			ErrorCode:    int32(common.BlockedByReceiver.Code),
 		}, nil
 	}
 
