@@ -15,7 +15,7 @@ import (
 	"github.com/zeromicro/go-zero/rest"
 )
 
-var configFile = flag.String("f", "etc/realtime-api.yaml", "the config file")
+var configFile = flag.String("f", "etc/realtime.yaml", "the config file")
 
 func main() {
 	flag.Parse()
