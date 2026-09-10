@@ -1,0 +1,32 @@
+Name: realtime-api
+Host: 0.0.0.0
+Port: 8102
+
+Redis:
+  Host: localhost:6379
+  Pass: ""
+  Type: node
+
+WebSocket:
+  Port: 9101
+  Path: /ws/chat
+
+Kafka:
+  Brokers:
+    - "localhost:9092"
+  MessageConsumerGroup: "infinite-chat-push-group-9"
+  NotificationConsumerGroup: "system-notification-consumer-group"
+
+Etcd:
+  Endpoints:
+    - localhost:2379
+  Prefix: /services/realtimeservice
+  PublicIP: 127.0.0.1
+
+# User RPC 客户端配置
+# go-zero 会自动从 etcd 发现 user.rpc 服务地址。Key 必须和 user-rpc.yaml 中 Etcd.Key 一致
+UserRpc:
+  Etcd:
+    Hosts:
+      - localhost:2379
+    Key: user.rpc

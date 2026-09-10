@@ -6,6 +6,7 @@ require (
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/golang-jwt/jwt/v4 v4.5.2
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/mattn/go-colorable v0.1.14
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/redis/go-redis/v9 v9.21.0
