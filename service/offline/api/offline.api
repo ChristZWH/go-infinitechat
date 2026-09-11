@@ -1,0 +1,117 @@
+info (
+	title: "离线服务"
+	desc:  "实现离线消息的相关功能"
+)
+
+type OfflineDataRequest {
+	UserId int64 `form:"userId" validate:"required" msg:"用户ID不能为空"`
+}
+
+type OfflineDataResponse {
+	Type           int32  `json:"type"`
+	SessionType    int32  `json:"sessionType"`
+	SessionId      int64  `json:"sessionId"`
+	SenderId       int64  `json:"senderId"`
+	Avatar         string `json:"avatar"`
+	Name           string `json:"name"`
+	LastMsgContent string `json:"lastMsgContent"`
+	LastMsgTime    string `json:"lastMsgTime"`
+	Count          int32  `json:"count"`
+}
+
+type OfflineMessageRequest {
+	SessionId          int64 `json:"sessionId"`
+	UnreadOfflineCount int32 `json:"unreadOfflineCount"`
+}
+
+type HistoryMessageRequest {
+	SessionId int64  `json:"sessionId"`
+	Time      string `json:"time"`
+}
+
+type MessageBody {
+	Content              string `json:"content"`
+	ReplyId              int64  `json:"replyId"`
+	RedPacketId          string `json:"redPacketId"` //红包ID（红包消息专用）
+	RedPacketWrapperText string `json:"redPacketWrapperText"` //  红包封面文案（红包消息专用）
+}
+
+type OfflineHistoryMessageResponse {
+	Type        int32       `json:"type"`
+	SenderId    int64       `json:"senderId"`
+	Avatar      string      `json:"avatar"`
+	Name        string      `json:"name"`
+	CreatedTime string      `json:"createdTime"`
+	Body        MessageBody `json:"body"`
+}
+
+type GetUnreadNotificationsRequest {
+	UserId   int64 `path:"userId" validate:"required" msg:"用户ID不能为空"`
+	PageNum  int32 `form:"pageNum,default=1"`
+	PageSize int32 `form:"pageSize,default=20,range=[1:100]"`
+}
+
+type GetUnreadCountRequest {
+	UserId int64 `path:"userId" validate:"required" msg:"用户ID不能为空"`
+}
+
+type MarkAsReadRequest {
+	UserId         int64 `path:"userId" validate:"required" msg:"用户ID不能为空"`
+	NotificationId int64 `path:"notificationId" validate:"required" msg:"通知ID不能为空"`
+}
+
+type MarkAsReadBatchRequest {
+	UserId          int64   `path:"userId" validate:"required" msg:"用户ID不能为空"`
+	NotificationIds []int64 `json:"notificationIds" validate:"required" msg:"通知ID不能为空"`
+}
+
+type MarkAllAsReadRequest {
+	UserId int64 `path:"userId" validate:"required" msg:"用户ID不能为空"`
+}
+
+@server (
+	prefix:  /api/offline // 路由前缀
+	group:   offlinedata
+	timeout: 10s // 该路由组的统一超时，覆盖全局配置
+)
+service offline-api {
+	// 离线会话摘要列表
+	@handler offlineData
+	get /data (OfflineDataRequest) returns ([]OfflineDataResponse)
+
+	// 仅拉取“离线未读消息”
+	@handler offlineMessage
+	post /messages (OfflineMessageRequest) returns ([]OfflineHistoryMessageResponse)
+
+	// 拉取“离线未读消息”
+	@handler historicalMessage
+	post /historical/messages (HistoryMessageRequest) returns ([]OfflineHistoryMessageResponse)
+}
+
+@server (
+	prefix:  /api/offline/notification //路由前缀
+	group:   systemnotification
+	timeout: 10s // 该组路由的统一超时，覆盖全局配置
+)
+service offline-api {
+	// 获取用户未读通知列表
+	@handler getUnreadNotification
+	get /:userId/unread (GetUnreadNotificationsRequest)
+
+	// 获取用户未读通知数量
+	@handler getUnreadCount
+	get /:userId/unread/count (GetUnreadCountRequest)
+
+	// "标记单个" 通知为已读
+	@handler markAsRead
+	post /:userId/read/:notificationId (MarkAsReadRequest) returns (bool)
+
+	// "批量标记" 通知为已读  
+	@handler markAsReadBatch
+	post /:userId/read/batch (MarkAsReadBatchRequest) returns (int32)
+
+	// "标记所有" 通知为已读
+	@handler markAllAsRead
+	post /:userId/read/all (MarkAllAsReadRequest) returns (int)
+}
+
