@@ -209,8 +209,7 @@ func handleBusinessMessage(conn *channelmgr.ClientConn, svcCtx *svc.ServiceConte
 		if errMsg == "" {
 			errMsg = validateResult.RejectReason
 		}
-		common.Warnf("消息发送被拒绝: senderId=%d, sessionId=%d, errorCode=%d, reason=%s",
-			msgReq.SenderId, msgReq.SessionId, validateResult.ErrorCode, validateResult.RejectReason)
+		common.Warnf("消息发送被拒绝: senderId=%d, sessionId=%d, errorCode=%d, reason=%s", msgReq.SenderId, msgReq.SessionId, validateResult.ErrorCode, validateResult.RejectReason)
 		sendErrorToClient(conn, msgReq.ClientMessageId, int(validateResult.ErrorCode), errMsg)
 		return
 	}
@@ -236,6 +235,8 @@ func handleBusinessMessage(conn *channelmgr.ClientConn, svcCtx *svc.ServiceConte
 			sendErrorToClient(conn, msgReq.ClientMessageId, rtc.ErrorCodeServiceUnavail, "消息发送失败，请稍后重试")
 			return
 		}
+	} else {
+		common.Warnf("Kafka 存储链路未初始化, store-topic 消息推送失败")
 	}
 	if svcCtx.MessagePusher != nil {
 		sessionKey := strconv.FormatInt(msgReq.SessionId, 10)
@@ -244,6 +245,8 @@ func handleBusinessMessage(conn *channelmgr.ClientConn, svcCtx *svc.ServiceConte
 			sendErrorToClient(conn, msgReq.ClientMessageId, rtc.ErrorCodeServiceUnavail, "消息发送失败，请稍后重试")
 			return
 		}
+	} else {
+		common.Warnf("Kafka 存储链路未初始化, message-topic 消息推送失败")
 	}
 }
 
