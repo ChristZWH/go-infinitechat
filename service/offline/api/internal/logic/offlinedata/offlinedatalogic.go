@@ -46,6 +46,7 @@ const GetAndDeleteOfflineDataLua = `
 	return {sessionData, countData}
 `
 
+// 聊天列表显示最后一条消息和未读数量
 func (l *OfflineDataLogic) OfflineData(req *types.OfflineDataRequest) (resp []types.OfflineDataResponse, err error) {
 	sessionSnapshotKey := fmt.Sprintf("user:%d", req.UserId)
 	sessionCountKey := fmt.Sprintf("user:%d:count", req.UserId)

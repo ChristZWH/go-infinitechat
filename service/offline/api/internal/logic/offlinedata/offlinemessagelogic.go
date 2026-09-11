@@ -49,7 +49,7 @@ func (l *OfflineMessageLogic) OfflineMessage(req *types.OfflineMessageRequest) (
 	hotBoundary := time.Now().UnixMilli() - constants.SevenDaysMillis
 	if len(result) < int(req.UnreadOfflineCount) {
 		remaining := int(req.UnreadOfflineCount) - len(result)
-		mysqlMessage := GetOfflineOrHistoryMessagesFromMysql(l.svcCtx, l.ctx, req.SessionId, hotBoundary, remaining)
+		mysqlMessage := GetHistoryMessagesFromMysql(l.svcCtx, l.ctx, req.SessionId, hotBoundary, remaining)
 		result = append(result, mysqlMessage...)
 	}
 
@@ -64,11 +64,12 @@ func GetOfflineMessagesFromRedis(redis *redis.Redis, sessionId int64, unreadOffl
 		common.Errorf("拉取离线消息失败: sessionId=%d, err=%s", sessionId, err.Error())
 		return []types.OfflineHistoryMessageResponse{}
 	}
-	return GetHistoryOrOfflineMessagesFromRedis(messageJsonSet)
+	return ParseMessagesFromJSON(messageJsonSet)
 }
 
-// 拉取消息历史记录或离线消息
-func GetHistoryOrOfflineMessagesFromRedis(messageJsonSet []string) []types.OfflineHistoryMessageResponse {
+// 将 Redis 返回的消息 JSON 字符串列表解析为响应结构体列表
+// （供 GetOfflineMessagesFromRedis / getHistoryMessageFromRedis 共用，本函数不访问 Redis）
+func ParseMessagesFromJSON(messageJsonSet []string) []types.OfflineHistoryMessageResponse {
 	if len(messageJsonSet) < 1 {
 		return []types.OfflineHistoryMessageResponse{}
 	}
@@ -86,10 +87,10 @@ func GetHistoryOrOfflineMessagesFromRedis(messageJsonSet []string) []types.Offli
 	return result
 }
 
-// 从 Mysql 查询历史消息
-func GetOfflineOrHistoryMessagesFromMysql(svcCtx *svc.ServiceContext, ctx context.Context, sessionId int64, hotBoundary int64, remaining int) []types.OfflineHistoryMessageResponse {
-	beforeTime := time.UnixMilli(hotBoundary)
-	messages, err := svcCtx.MessageModel.FindBySessionBeforeTime(ctx, sessionId, beforeTime, remaining)
+// 从 Mysql 查询指定时间之前的历史消息（并批量填充发送者头像昵称）
+func GetHistoryMessagesFromMysql(svcCtx *svc.ServiceContext, ctx context.Context, sessionId int64, beforeTimeMillis int64, limit int) []types.OfflineHistoryMessageResponse {
+	beforeTime := time.UnixMilli(beforeTimeMillis)
+	messages, err := svcCtx.MessageModel.FindBySessionBeforeTime(ctx, sessionId, beforeTime, limit)
 	if err != nil || len(messages) == 0 {
 		return []types.OfflineHistoryMessageResponse{}
 	}
