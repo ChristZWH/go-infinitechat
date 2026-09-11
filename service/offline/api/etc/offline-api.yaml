@@ -1,3 +1,50 @@
 Name: offline-api
 Host: 0.0.0.0
-Port: 8888
+Port: 8101
+
+Redis:
+  Host: localhost:6379
+  Pass: ""
+  Type: node
+  
+Cache:
+  - Host: localhost:6379
+    Pass: ""
+    Type: node
+    
+Minio:
+  Url: http://localhost:9000
+  AccessKey: minioadmin
+  SecretKey: minioadmin
+  
+DataSource: root:Zwh20050512*@tcp(localhost:3306)/infiniteChat?charset=utf8mb4&parseTime=True&loc=Local
+
+Etcd:
+  Endpoints:
+    - localhost:2379
+  RegisterKey: /services/offline.api # 网关通过这个 key 发现本服务
+  PublicIP: 127.0.0.1
+  
+UserRpc:
+  Etcd:
+    Hosts:
+      - localhost:2379
+    Key: user.rpc
+    
+Kafka:
+  Brokers:
+    - "localhost:9092"
+
+Log:
+  Mode: console
+  stat: false
+  Level: error
+
+# Canal 配置
+Canal:
+  Host: 127.0.0.1
+  Port: 11111
+  Destination: example
+  Username: canal
+  Password: canal
+  Filter: ".*\\..*"
