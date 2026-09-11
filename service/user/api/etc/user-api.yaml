@@ -17,7 +17,7 @@ Minio:
   AccessKey: minioadmin
   SecretKey: minioadmin
   
-DataSourse: root:Zwh20050512*@tcp(localhost:3306)/infiniteChat?charset=utf8mb4&parseTime=True&loc=Local
+DataSource: root:Zwh20050512*@tcp(localhost:3306)/infiniteChat?charset=utf8mb4&parseTime=True&loc=Local
 
 Etcd:
   Endpoints: 

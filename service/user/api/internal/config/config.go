@@ -21,7 +21,7 @@ type Config struct {
 		SecretKey string
 	}
 
-	DataSourse string
+	DataSource string
 
 	Etcd struct {
 		Endpoints   []string

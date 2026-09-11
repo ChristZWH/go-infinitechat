@@ -55,7 +55,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	rds := redis.MustNewRedis(c.Redis) // 创建 Redis 实例
 
 	// model
-	conn := sqlx.NewMysql(c.DataSourse)
+	conn := sqlx.NewMysql(c.DataSource)
 	applyFriendModel := apply_friend.NewApplyFriendModel(conn, c.Cache)
 	balanceLogModel := balance_log.NewBalanceLogModel(conn, c.Cache)
 	friendModel := friend.NewFriendModel(conn, c.Cache)
