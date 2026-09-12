@@ -6,6 +6,7 @@ package systemnotification
 import (
 	"context"
 
+	"go-infinitechat/common/common"
 	"go-infinitechat/service/offline/api/internal/svc"
 	"go-infinitechat/service/offline/api/internal/types"
 
@@ -26,8 +27,12 @@ func NewGetUnreadCountLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Ge
 	}
 }
 
-func (l *GetUnreadCountLogic) GetUnreadCount(req *types.GetUnreadCountRequest) error {
-	// todo: add your logic here and delete this line
+func (l *GetUnreadCountLogic) GetUnreadCount(req *types.GetUnreadCountRequest) (map[string]int64, error) {
+	common.ThrowIfWithMsg(req.UserId <= 0, common.ParamsError, "用户ID无效")
 
-	return nil
+	resp, err := l.svcCtx.SystemNotificationModel.CountUnreadByReceiverId(l.ctx, req.UserId)
+	if err != nil {
+		return nil, common.WrapError(common.MysqlError, err)
+	}
+	return map[string]int64{"count": resp}, nil
 }

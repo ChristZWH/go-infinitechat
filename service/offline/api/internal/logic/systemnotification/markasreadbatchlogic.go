@@ -6,6 +6,7 @@ package systemnotification
 import (
 	"context"
 
+	"go-infinitechat/common/common"
 	"go-infinitechat/service/offline/api/internal/svc"
 	"go-infinitechat/service/offline/api/internal/types"
 
@@ -27,7 +28,12 @@ func NewMarkAsReadBatchLogic(ctx context.Context, svcCtx *svc.ServiceContext) *M
 }
 
 func (l *MarkAsReadBatchLogic) MarkAsReadBatch(req *types.MarkAsReadBatchRequest) (resp int32, err error) {
-	// todo: add your logic here and delete this line
+	common.ThrowIfWithMsg(req.UserId <= 0, common.ParamsError, "用户ID无效")
+	common.ThrowIfWithMsg(len(req.NotificationIds) == 0, common.ParamsError, "通知ID不能为空")
 
-	return
+	affected, err := l.svcCtx.SystemNotificationModel.MarkAsReadBatch(l.ctx, req.UserId, req.NotificationIds)
+	if err != nil {
+		return 0, common.WrapError(common.MysqlError, err)
+	}
+	return int32(affected), nil
 }

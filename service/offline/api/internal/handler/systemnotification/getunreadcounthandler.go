@@ -6,10 +6,11 @@ package systemnotification
 import (
 	"net/http"
 
-	"github.com/zeromicro/go-zero/rest/httpx"
 	"go-infinitechat/service/offline/api/internal/logic/systemnotification"
 	"go-infinitechat/service/offline/api/internal/svc"
 	"go-infinitechat/service/offline/api/internal/types"
+
+	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
 func GetUnreadCountHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -21,11 +22,11 @@ func GetUnreadCountHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		}
 
 		l := systemnotification.NewGetUnreadCountLogic(r.Context(), svcCtx)
-		err := l.GetUnreadCount(&req)
+		resp, err := l.GetUnreadCount(&req)
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 		} else {
-			httpx.Ok(w)
+			httpx.OkJsonCtx(r.Context(), w, resp)
 		}
 	}
 }
