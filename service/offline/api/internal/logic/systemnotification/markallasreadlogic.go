@@ -6,6 +6,7 @@ package systemnotification
 import (
 	"context"
 
+	"go-infinitechat/common/common"
 	"go-infinitechat/service/offline/api/internal/svc"
 	"go-infinitechat/service/offline/api/internal/types"
 
@@ -27,7 +28,11 @@ func NewMarkAllAsReadLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Mar
 }
 
 func (l *MarkAllAsReadLogic) MarkAllAsRead(req *types.MarkAllAsReadRequest) (resp int, err error) {
-	// todo: add your logic here and delete this line
+	common.ThrowIfWithMsg(req.UserId <= 0, common.ParamsError, "用户ID无效")
 
-	return
+	affected, err := l.svcCtx.SystemNotificationModel.MarkAllAsRead(l.ctx, req.UserId)
+	if err != nil {
+		return 0, common.WrapError(common.MysqlError, err)
+	}
+	return int(affected), nil
 }
