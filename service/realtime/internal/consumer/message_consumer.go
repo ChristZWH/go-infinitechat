@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"go-infinitechat/common/common"
 	"go-infinitechat/common/model/dto"
 	rtc "go-infinitechat/service/realtime/internal/constants"
@@ -71,7 +72,7 @@ func (c *MessageConsumer) handleSignalMessage(msgReq *dto.MessageRequest) {
 	if ok := ws.SendMessageToUser(c.svcCtx.ChannelManager, senderId, respJSON); ok {
 		common.Infof("[MessageConsumer][single] 单聊消息推送给 '发送者' 成功: fromUserId=%d, toUserId=%d, sessionId=%d, messageId=%d", msgReq.SenderId, *msgReq.ReceiverId, msgReq.SessionId, msgReq.MessageId)
 	} else {
-		common.Warnf("[MessageConsumer][single] 单聊消息推送给 '发送者' 成功: fromUserId=%d, toUserId=%d, sessionId=%d, messageId=%d", msgReq.SenderId, *msgReq.ReceiverId, msgReq.SessionId, msgReq.MessageId)
+		common.Warnf("[MessageConsumer][single] 单聊消息推送给 '发送者' 失败: fromUserId=%d, toUserId=%d, sessionId=%d, messageId=%d", msgReq.SenderId, *msgReq.ReceiverId, msgReq.SessionId, msgReq.MessageId)
 	}
 
 	// 推送给接收者
@@ -81,6 +82,8 @@ func (c *MessageConsumer) handleSignalMessage(msgReq *dto.MessageRequest) {
 			common.Infof("[MessageConsumer][single] 单聊消息推送给 '接收者' 成功: fromUserId=%d, toUserId=%d, sessionId=%d, messageId=%d", msgReq.SenderId, *msgReq.ReceiverId, msgReq.SessionId, msgReq.MessageId)
 		} else {
 			common.Infof("[MessageConsumer][single] 接收者不在线: userId=%s, messageId=%d", receiverId, msgReq.MessageId)
+			// storeOfflineMessage 逻辑与 Canal 功能重叠，保留Canal功能（暂时注释掉）
+			// c.storeOfflineMessage(msgReq, msgResp)
 		}
 	}
 }
@@ -133,7 +136,9 @@ func (c *MessageConsumer) handleGroupMessage(ctx context.Context, msgReq *dto.Me
 
 	// 5. 优先推送给发送者自己
 	senderIdStr := strconv.FormatInt(senderId, 10)
-	ws.SendMessageToUser(c.svcCtx.ChannelManager, senderIdStr, respJSON)
+	if ok := ws.SendMessageToUser(c.svcCtx.ChannelManager, senderIdStr, respJSON); ok {
+		common.Debugf("[MessageConsumer][group] 群聊消息推送成功: userId=%s, sessionId=%d", senderIdStr, sessionId)
+	}
 
 	// 6. 遍历群成员，推送给其他在线成员
 	for _, memId := range memberResp.UserIds {
@@ -164,5 +169,50 @@ func createMessageResponse(msgReq *dto.MessageRequest) *dto.MessageResponse {
 		CreatedTime:     createdTime,
 		MessageId:       msgReq.MessageId,
 		ClientMessageId: msgReq.ClientMessageId,
+	}
+}
+
+// storeOfflineMessage 接收者离线时，把消息写入接收者的离线存储（Redis）
+//
+// 写入结构与 offline 服务 offlinedata 接口的读取格式严格对齐：
+//
+//	user:{receiverId}        hash: field=sessionId, value=会话摘要 JSON
+//	user:{receiverId}:count  hash: field=sessionId, value=未读数
+//
+// storeOfflineMessage 不能直接用于群聊，群聊的 ReceiverId 为 nil，解引用会 panic
+// storeOfflineMessage 逻辑与 Canal 功能重叠，保留Canal功能（暂时注释掉）
+func (c *MessageConsumer) storeOfflineMessage(msgReq *dto.MessageRequest, msgResp *dto.MessageResponse) {
+	receiverId := strconv.FormatInt(*msgReq.ReceiverId, 10)
+	sessionId := strconv.FormatInt(msgReq.SessionId, 10)
+
+	// 会话摘要：key 必须和 offlinedatalogic 里 data["xxx"] 的字段名一字不差
+	snapshot := map[string]string{
+		"type":        strconv.Itoa(msgReq.Type),
+		"sessionType": strconv.Itoa(msgReq.SessionType),
+		"senderId":    strconv.FormatInt(msgReq.SenderId, 10),
+		"avatar":      msgResp.Avatar,
+		"name":        msgResp.Nickname,
+		"lastMsgTime": msgResp.CreatedTime,
+	}
+	if msgReq.Body != nil {
+		snapshot["lastMsgContent"] = msgReq.Body.Content
+	}
+	snapshotJSON, err := json.Marshal(snapshot)
+	if err != nil {
+		common.Errorf("[MessageConsumer][single] 离线摘要序列化失败: %s", err.Error())
+		return
+	}
+
+	// 写会话摘要（Hset 会覆盖旧值，摘要只需保留该会话最新一条）
+	sessionKey := fmt.Sprintf("user:%s", receiverId)
+	if err := c.svcCtx.Redis.Hset(sessionKey, sessionId, string(snapshotJSON)); err != nil {
+		common.Errorf("[MessageConsumer][single] 离线摘要写入 Redis 失败: %s", err.Error())
+		return
+	}
+
+	// 未读数 +1（Hincrby：field 不存在时从 0 开始加）
+	countKey := fmt.Sprintf("user:%s:count", receiverId)
+	if _, err := c.svcCtx.Redis.Hincrby(countKey, sessionId, 1); err != nil {
+		common.Errorf("[MessageConsumer][single] 离线未读数写入 Redis 失败: %s", err.Error())
 	}
 }

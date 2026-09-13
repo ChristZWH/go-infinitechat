@@ -10,7 +10,7 @@ type Config struct {
 	zrpc.RpcServerConf
 
 	// Mysql 连接字符串
-	DataSourse string
+	DataSource string
 
 	// 	Redis 配置
 	// 注意：这里有个坑，在rpc服务是要配置RpcServerConf的，然后我这里的redis和go-zero的缓存都是用的redis，导致启动出现conflict key redis错误
