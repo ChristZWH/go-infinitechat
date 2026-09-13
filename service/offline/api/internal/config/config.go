@@ -34,13 +34,16 @@ type Config struct {
 		Brokers []string
 	}
 
-	// Canal  配置
-	Canal struct {
-		Host        string `json:",default=127.0.0.1"`
-		Port        int    `json:",default=11111"`
-		Destination string `json:",default=example"`
-		Username    string `json:",default=canal"`
-		Password    string `json:",default=canal"`
-		Filter      string `json:",default=.*\\..*"`
-	}
+	// Canal 配置（MySQL binlog 增量订阅）
+	Canal CanalConf
+}
+
+// CanalConf Canal 服务连接配置
+type CanalConf struct {
+	Host        string `json:",default=127.0.0.1"`
+	Port        int    `json:",default=11111"`
+	Destination string `json:",default=example"`
+	Username    string `json:",default=canal"`
+	Password    string `json:",default=canal"`
+	Filter      string `json:",default=.*\\..*"`
 }

@@ -33,6 +33,7 @@ func NewOfflineMessageLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Of
 	}
 }
 
+// 场景：点开具体一个聊天框（sessionID）直接拉去这个 session_id 的未读数消息（从 Redis 中）
 func (l *OfflineMessageLogic) OfflineMessage(req *types.OfflineMessageRequest) (resp []types.OfflineHistoryMessageResponse, err error) {
 	if req.SessionId <= 0 || req.UnreadOfflineCount <= 0 {
 		return []types.OfflineHistoryMessageResponse{}, nil

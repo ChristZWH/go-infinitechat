@@ -1,14 +1,14 @@
 package constants
 
 var (
-	KafkaMessageTopicStore = "stroe-topic"
+	KafkaMessageTopicStore = "store-topic"
 	KafkaMessageTopicPush  = "message-topic"
 
 	// 系统通知消息 Kafka
-	KafkaSystemNotificationTopic = "system-notifaction-topic"
+	KafkaSystemNotificationTopic = "system-notification-topic"
 
 	// 系统通知持久化 Kafka 主题
-	KafkaStoreNotificationTopic = "store-notifaction-topic"
+	KafkaStoreNotificationTopic = "store-notification-topic"
 
 	RedisWsServerUri    = "wsServerUri"
 	DiscoveryClientName = "RealTimeService"
