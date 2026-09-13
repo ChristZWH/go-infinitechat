@@ -34,6 +34,8 @@ UserRpc:
 Kafka:
   Brokers:
     - "localhost:9092"
+  MessageStoreConsumerGroup: offline-message-store-group
+  NotificationStoreConsumerGroup: offline-notification-store-group
 
 Log:
   Mode: console

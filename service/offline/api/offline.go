@@ -11,12 +11,17 @@ import (
 	"net/http"
 
 	"go-infinitechat/common/common"
+	etcdreg "go-infinitechat/common/etcd"
 	"go-infinitechat/common/middleware"
+	"go-infinitechat/common/model/constants"
 	"go-infinitechat/common/utils"
+	"go-infinitechat/service/offline/api/internal/canal"
 	"go-infinitechat/service/offline/api/internal/config"
+	"go-infinitechat/service/offline/api/internal/consumer"
 	"go-infinitechat/service/offline/api/internal/handler"
 	"go-infinitechat/service/offline/api/internal/svc"
 
+	"github.com/zeromicro/go-queue/kq"
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/rest"
 	"github.com/zeromicro/go-zero/rest/httpx"
@@ -60,6 +65,72 @@ func main() {
 	ctx := svc.NewServiceContext(c)
 	handler.RegisterHandlers(server, ctx)
 
+	// 注册到 etcd（网关服务发现）
+	if c.Etcd.RegisterKey != "" {
+		host := c.Etcd.PublicIP
+		if host == "" {
+			host = c.Host
+		}
+		reg, err := etcdreg.RegisterHTTPService(etcdreg.RegisterOptions{
+			Endpoints: c.Etcd.Endpoints,
+			Key:       c.Etcd.RegisterKey,                 // 最终写入最终写入 etcd 的完整 key 是：{Key}/{Addr} = /services/offline.api/127.0.0.1:8101
+			Addr:      fmt.Sprintf("%s:%d", host, c.Port), //Addr 同时是 key 后缀和 value ；表示本服务对外可访达的地址
+			TTL:       30,
+		})
+		if err != nil {
+			common.Errorf("etcd 注册失败: %s", err.Error())
+		} else if reg != nil {
+			defer reg.Close()
+		}
+	}
+
+	if len(c.Kafka.Brokers) > 0 {
+		go startMessageStoreConsumer(c, ctx)
+		go startNotificationStoreConsumer(c, ctx)
+	}
+
+	// 启动 Canal 客户端：监听 binlog 写 redis 离线数据
+	if ctx.SqlConn != nil {
+		canalRunner := canal.NewCanalRunner(c.Canal, ctx.Redis, ctx.SqlConn, ctx.UserRpc)
+		// CanalRunner.Start 内部是死循环，要用 go 起协程
+		go canalRunner.Start(context.Background())
+	}
+
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
 	server.Start()
+}
+
+// 消费 store-topic：把用户消息写入 MySQL（Redis 更新由 Canal 监听 binlog 处理）
+func startMessageStoreConsumer(c config.Config, svcCtx *svc.ServiceContext) {
+	msgConsumer := consumer.NewMessageStoreConsumer(svcCtx.MessageModel)
+	q := kq.MustNewQueue(kq.KqConf{
+		Brokers:    c.Kafka.Brokers,
+		Group:      c.Kafka.MessageStoreConsumerGroup,
+		Topic:      constants.KafkaMessageTopicStore, // 消费store-topic，持久化到MySQL中
+		Offset:     "last",
+		Consumers:  4,
+		Processors: 4,
+	}, msgConsumer)
+	defer q.Stop()
+
+	common.Infof("Message Store Consumer 启动: topic=%s, group=%s", constants.KafkaMessageTopicStore, c.Kafka.MessageStoreConsumerGroup)
+	q.Start() // 阻塞
+}
+
+// 消费 store-notification-topic：把离线系统通知写入 MySQL
+func startNotificationStoreConsumer(c config.Config, svcCtx *svc.ServiceContext) {
+	// kq.MustNewQueue 第二个参数是同一个 handler 实例——不能用 NewMessageStoreConsumer(...) 每次建新的
+	notifConsumer := consumer.NewNotificationStoreConsumer(svcCtx.SystemNotificationModel)
+	q := kq.MustNewQueue(kq.KqConf{
+		Brokers:    c.Kafka.Brokers,
+		Group:      c.Kafka.NotificationStoreConsumerGroup,
+		Topic:      constants.KafkaStoreNotificationTopic, // 消费 store-notification-topic，持久化到MySQL 中
+		Offset:     "last",
+		Consumers:  3,
+		Processors: 3,
+	}, notifConsumer)
+	defer q.Stop()
+
+	common.Infof("Notification Store Consumer 启动: topic=%s, group=%s", constants.KafkaStoreNotificationTopic, c.Kafka.NotificationStoreConsumerGroup)
+	q.Start() // 阻塞
 }

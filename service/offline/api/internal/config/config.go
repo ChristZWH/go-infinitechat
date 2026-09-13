@@ -32,6 +32,10 @@ type Config struct {
 
 	Kafka struct {
 		Brokers []string
+		// store-topic 消费者组（消息持久化）
+		MessageStoreConsumerGroup string `json:",default=offline-message-store-group"`
+		// store-notification-topic 消费者组（离线通知持久化）
+		NotificationStoreConsumerGroup string `json:",default=offline-notification-store-group"`
 	}
 
 	// Canal 配置（MySQL binlog 增量订阅）

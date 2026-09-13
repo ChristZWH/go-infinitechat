@@ -23,7 +23,7 @@ Etcd:
   Endpoints: 
     - localhost:2379
   Prefix: /services/realtimeservice # 读 realtime 节点列表用的（给 refreshUri 接口用，不要改）
-  RegisterKey: /services/user/api # 每个服务写不同的值
+  RegisterKey: /services/user.api # 每个服务写不同的值
   PublicIp: 127.0.0.1 # 容器环境改成可达 IP
 
 Kafka:
