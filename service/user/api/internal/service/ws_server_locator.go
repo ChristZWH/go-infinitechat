@@ -91,6 +91,7 @@ func (l *WsServerLocator) GetWsServerUri(userId string) string {
 	}
 
 	h := hashStr(userId)
+	// sort.Search 的语义是"返回第一个使条件成立的最小下标"
 	idx := sort.Search(len(l.ring), func(i int) bool {
 		return l.ring[i].hash >= h
 	})
