@@ -6,6 +6,7 @@ package svc
 import (
 	"go-infinitechat/common/kafka"
 	"go-infinitechat/service/redpacket/api/internal/config"
+	"go-infinitechat/service/redpacket/api/internal/service"
 	"go-infinitechat/service/redpacket/api/internal/types/constants"
 	"go-infinitechat/service/redpacket/model/red_packet"
 	"go-infinitechat/service/redpacket/model/red_packet_receive"
@@ -34,6 +35,9 @@ type ServiceContext struct {
 
 	// kafka
 	KafkaPusherManager *kafka.PusherManager
+
+	// Service
+	RedPacketService *service.RedPacketService
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
@@ -51,7 +55,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		kafkaPusherManager = kafka.NewPusherManager(c.Kafka.Brokers, constants.AllRedPacketKafkaTopics())
 	}
 
-	// redPacketService:=service.NewRedPacketService()
+	redPacketService := service.NewRedPacketService(redPacketModel, redPacketReceiveModel, userBalanceModel, balanceLogModel, redis, conn, kafkaPusherManager, userRpc)
 
 	return &ServiceContext{
 		Config:   c,
@@ -65,5 +69,6 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		// RPC
 		UserRPC:            userRpc,
 		KafkaPusherManager: kafkaPusherManager,
+		RedPacketService:   redPacketService,
 	}
 }
