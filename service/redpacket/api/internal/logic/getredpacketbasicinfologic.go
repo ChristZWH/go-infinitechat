@@ -6,6 +6,8 @@ package logic
 import (
 	"context"
 
+	"go-infinitechat/common/common"
+	"go-infinitechat/service/redpacket/api/internal/service"
 	"go-infinitechat/service/redpacket/api/internal/svc"
 	"go-infinitechat/service/redpacket/api/internal/types"
 
@@ -26,8 +28,32 @@ func NewGetRedPacketBasicInfoLogic(ctx context.Context, svcCtx *svc.ServiceConte
 	}
 }
 
+// 查询红包基本信息
 func (l *GetRedPacketBasicInfoLogic) GetRedPacketBasicInfo(req *types.RedPacketBasicRequest) (resp *types.RedPacketBasicVO, err error) {
-	// todo: add your logic here and delete this line
+	common.Infof("查询红包基本信息，红包ID: %d\n", req.RedPacketId)
 
-	return
+	// 1. 查询红包基本信息
+	rp, findErr := l.svcCtx.RedPacketModel.FindOne(l.ctx, req.RedPacketId)
+	common.ThrowIfWithMsg(findErr != nil, common.NotFoundError, "红包不存在", findErr)
+
+	// 2. 计算已领取统计信息
+	receiceList, _ := l.svcCtx.RedPacketReceiveModel.FindByRedPacketId(l.ctx, req.RedPacketId)
+	receivedCount := len(receiceList)
+	var receivedAmountFen int64
+	for _, r := range receiceList {
+		receivedAmountFen += r.Amount
+	}
+
+	common.Infof("红包基本信息查询完成，红包ID: %d, 状态: %d, 已领取数量: %d\n", req.RedPacketId, rp.Status, receivedCount)
+
+	return &types.RedPacketBasicVO{
+		RedPacketId:    rp.RedPacketId,
+		RedPacketType:  int(rp.RedPacketType),
+		TotalAmount:    service.ConvertFenToYuan(rp.TotalAmount),
+		TotalCount:     int(rp.TotalCount),
+		ReceivedCount:  receivedCount,
+		ReceivedAmount: service.ConvertFenToYuan(receivedAmountFen),
+		Status:         int(rp.Status),
+		CreatedTime:    rp.CreatedTime.Format("2006-01-02 15:04:05"),
+	}, nil
 }

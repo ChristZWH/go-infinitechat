@@ -6,10 +6,11 @@ package handler
 import (
 	"net/http"
 
-	"github.com/zeromicro/go-zero/rest/httpx"
 	"go-infinitechat/service/redpacket/api/internal/logic"
 	"go-infinitechat/service/redpacket/api/internal/svc"
 	"go-infinitechat/service/redpacket/api/internal/types"
+
+	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
 func GetRedPacketBasicInfoHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
