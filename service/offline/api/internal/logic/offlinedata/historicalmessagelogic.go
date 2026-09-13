@@ -32,6 +32,7 @@ func NewHistoricalMessageLogic(ctx context.Context, svcCtx *svc.ServiceContext) 
 	}
 }
 
+// 场景：上滑聊天框加载聊天历史记录
 func (l *HistoricalMessageLogic) HistoricalMessage(req *types.HistoryMessageRequest) (resp []types.OfflineHistoryMessageResponse, err error) {
 	sessionId := req.SessionId
 	limit := constants.LimitMessageCount //30

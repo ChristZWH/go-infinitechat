@@ -82,7 +82,7 @@ func (c *MessageConsumer) handleSignalMessage(msgReq *dto.MessageRequest) {
 			common.Infof("[MessageConsumer][single] 单聊消息推送给 '接收者' 成功: fromUserId=%d, toUserId=%d, sessionId=%d, messageId=%d", msgReq.SenderId, *msgReq.ReceiverId, msgReq.SessionId, msgReq.MessageId)
 		} else {
 			common.Infof("[MessageConsumer][single] 接收者不在线: userId=%s, messageId=%d", receiverId, msgReq.MessageId)
-			c.storeOfflineMessage(msgReq, msgResp)
+			// c.storeOfflineMessage(msgReq, msgResp)
 		}
 	}
 }
@@ -179,6 +179,7 @@ func createMessageResponse(msgReq *dto.MessageRequest) *dto.MessageResponse {
 //	user:{receiverId}:count  hash: field=sessionId, value=未读数
 //
 // storeOfflineMessage 不能直接用于群聊，群聊的 ReceiverId 为 nil，解引用会 panic
+// storeOfflineMessage 逻辑与 Canal 功能重叠，保留Canal功能
 func (c *MessageConsumer) storeOfflineMessage(msgReq *dto.MessageRequest, msgResp *dto.MessageResponse) {
 	receiverId := strconv.FormatInt(*msgReq.ReceiverId, 10)
 	sessionId := strconv.FormatInt(msgReq.SessionId, 10)
