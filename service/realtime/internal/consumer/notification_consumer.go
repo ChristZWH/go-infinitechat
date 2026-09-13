@@ -59,23 +59,21 @@ func (c *Notification) Consume(ctx context.Context, key, val string) error {
 
 	receiverId := strconv.FormatInt(msg.ReceiverId, 10)
 
-	// 2. 尝试通过本节点的 ChannelManager 推送
-	if ok := websocket.SendMessageToUser(c.svcCtx.ChannelManager, receiverId, []byte(msg.MessageId)); !ok {
-		// 用户在当前节点在线，推送成功
-		common.Infof("[NotificationConsumer] 系统通知推送成功: messageId=%s, receiverId=%s, type=%d",
-			msg.MessageId, receiverId, msg.Type)
+	// 2. 本节点找到连接 → 直接推送，成功即结束（在线通知不持久化，避免重复收到）
+	if ok := websocket.SendMessageToUser(c.svcCtx.ChannelManager, receiverId, []byte(msg.MessageId)); ok {
+		common.Infof("[NotificationConsumer] 系统通知推送成功: messageId=%s, receiverId=%s, type=%d", msg.MessageId, receiverId, msg.Type)
 		return nil
 	}
 
 	// 3. 本节点没找到连接，检查 Redis 判断用户是否在其他节点在线
 	isOnline, _ := c.svcCtx.Redis.Hexists(rtc.RedisWsServerUri, receiverId)
 	if isOnline {
-		// 用户在其他节点在线，由其他节点的 Consumer 负责推送，本节点忽略
-		common.Debugf("[NotificationConsumer] 用户在其他节点在线，跳过: receiverId=%s", receiverId)
+		// 用户在其他节点在线，本节点不持久化
+		common.Debugf("[NotificationConsumer] 用户在其他节点在线，跳过持久化: receiverId=%s", receiverId)
 		return nil
 	}
 
-	// 4. 用户确实离线，转发到 store-notification-topic 进行持久化
+	// 4. 确认离线，转发到 store-notification-topic 进行持久化
 	// 用户下次上线时，客户端会拉取离线通知
 	if c.svcCtx.NotificationStorePusher != nil {
 		if err := c.svcCtx.NotificationStorePusher.Push(ctx, val); err != nil {

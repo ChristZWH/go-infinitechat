@@ -20,6 +20,7 @@ type ServiceContext struct {
 	MessageModel            message.MessageModel
 	SystemNotificationModel system_notification.SystemNotificationModel
 	UserRpc                 userrpc.UserRpc
+	SqlConn                 sqlx.SqlConn
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
@@ -27,6 +28,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 
 	return &ServiceContext{
 		Config:                  c,
+		SqlConn:                 conn,
 		Redis:                   redis.MustNewRedis(c.Redis),
 		MessageModel:            message.NewMessageModel(conn, c.Cache),
 		SystemNotificationModel: system_notification.NewSystemNotificationModel(conn, c.Cache),
