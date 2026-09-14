@@ -9,7 +9,7 @@ CREATE TABLE `red_packet`
     `red_packet_type`         tinyint                                                      NOT NULL COMMENT '红包类型：0 普通红包，1 拼手气红包',
     `total_amount`            bigint                                                       NOT NULL COMMENT '红包总金额(单位：分)',
     `total_count`             int                                                          NOT NULL COMMENT '红包总个数',
-    `status`                  tinyint                                                      NOT NULL DEFAULT 0 COMMENT '状态：0 未领取完，1 已领取完，2 已过期',
+    `status`                  tinyint                                                      NOT NULL DEFAULT 0 COMMENT '状态：0 未领取完，1 已领取完，2 已过期，-1 红包不存在',
     `created_time`            datetime                                                     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_time`            datetime                                                     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`red_packet_id`) USING BTREE,
