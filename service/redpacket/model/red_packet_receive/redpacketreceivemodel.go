@@ -19,6 +19,8 @@ type (
 		FindByRedPacketId(ctx context.Context, redPacketId int64) ([]*RedPacketReceive, error)
 		// 按红包ID分页查询领取记录
 		FindPageByRedPacketId(ctx context.Context, redPacketId int64, pageNum, pageSize int) ([]*RedPacketReceive, error)
+		// 按红包ID聚合统计领取数量与总金额（轻量查询，只返回一行）
+		CountSumByRedPacketId(ctx context.Context, redPacketId int64) (count int, sumFen int64, err error)
 	}
 
 	customRedPacketReceiveModel struct {
@@ -33,6 +35,7 @@ func NewRedPacketReceiveModel(conn sqlx.SqlConn, c cache.CacheConf, opts ...cach
 	}
 }
 
+// 全量 一次性拉取所有记录
 func (m *customRedPacketReceiveModel) FindByRedPacketId(ctx context.Context, redPacketId int64) ([]*RedPacketReceive, error) {
 	query := fmt.Sprintf("select %s from %s where `red_packet_id` = ? order by `received_at` desc", redPacketReceiveRows, m.table)
 	var resp []*RedPacketReceive
@@ -43,6 +46,7 @@ func (m *customRedPacketReceiveModel) FindByRedPacketId(ctx context.Context, red
 	return resp, nil
 }
 
+// 分页 每次只有查询一页 limit
 func (m *customRedPacketReceiveModel) FindPageByRedPacketId(ctx context.Context, redPacketId int64, pageNum, pageSize int) ([]*RedPacketReceive, error) {
 	offset := (pageNum - 1) * pageSize
 	query := fmt.Sprintf("select %s from %s where `red_packet_id` = ? order by `received_at` desc, `receiver_id` asc limit ?, ?", redPacketReceiveRows, m.table)
@@ -52,4 +56,17 @@ func (m *customRedPacketReceiveModel) FindPageByRedPacketId(ctx context.Context,
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (m *customRedPacketReceiveModel) CountSumByRedPacketId(ctx context.Context, redPacketId int64) (count int, sumFen int64, err error) {
+	query := fmt.Sprintf("select count(*) as `cnt`, coalesce(sum(`amount`), 0) as `total` from %s where `red_packet_id` = ?", m.table)
+	var resp struct {
+		Cnt   int64 `db:"cnt"`
+		Total int64 `db:"total"`
+	}
+	if err := m.QueryRowNoCacheCtx(ctx, &resp, query, redPacketId); err != nil {
+		return 0, 0, err
+	}
+	count, sumFen = int(resp.Cnt), resp.Total
+	return
 }
