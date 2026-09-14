@@ -65,6 +65,7 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 		case constants.StatusExpired:
 			resp.Message = "红包已过期"
 		default:
+			// Redis 是实时真相，MySQL 是异步追账，两者之间永远有个小时间窗，default 分支就是给这个时间窗兜底的
 			resp.Message = "暂时无法领取"
 		}
 		return resp, nil

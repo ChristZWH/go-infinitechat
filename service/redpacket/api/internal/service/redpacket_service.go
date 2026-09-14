@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"go-infinitechat/common/common"
 	"go-infinitechat/common/kafka"
+	"go-infinitechat/common/utils"
 	"go-infinitechat/service/redpacket/api/internal/script"
 	"go-infinitechat/service/redpacket/api/internal/types/constants"
 	"go-infinitechat/service/redpacket/model/red_packet"
@@ -18,6 +20,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/redis"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
@@ -138,4 +141,95 @@ func (s *RedPacketService) GetReceivedAmount(redPacket, userId int64) string {
 		return ConvertFenToYuan(amountFen)
 	}
 	return ""
+}
+
+type UserInfoItem struct {
+	NickName string
+	Avatar   string
+}
+
+// 批量获取用户信息
+func (s *RedPacketService) BatchGetUserInfos(ctx context.Context, userIds []int64) map[int64]UserInfoItem {
+	result := make(map[int64]UserInfoItem)
+	if s.UserRpc == nil {
+		return map[int64]UserInfoItem{}
+	}
+	req := &userrpc.BatchGetUserInfosReq{UserIds: userIds}
+	resp, err := s.UserRpc.BatchGetUserInfos(ctx, req)
+	if err != nil {
+		logx.Errorf("批量获取用户信息失败: %v", err)
+		return result
+	}
+	if resp != nil && resp.Users != nil {
+		for _, item := range resp.Users {
+			result[item.UserId] = UserInfoItem{NickName: item.Nickname, Avatar: item.Avatar}
+		}
+	}
+	return result
+}
+
+// 增加用户余额
+func (s *RedPacketService) AddBalance(ctx context.Context, userId, amount int64) error {
+	return s.UserBalanceModel.AddBalanceTx(ctx, userId, amount)
+}
+
+// 记录余额变动日志
+func (s *RedPacketService) InsertBalanceLog(ctx context.Context, userId, amount int64, logType int, related int64) {
+	now := time.Now()
+	_, err := s.BalanceLogModel.InsertTx(ctx, &balance_log.BalanceLog{
+		BalanceLogId: utils.NextInt(),
+		UserId:       userId,
+		Amount:       amount,
+		Type:         int64(logType),
+		RelatedId:    sql.NullInt64{Int64: related, Valid: true},
+		CreatedTime:  now,
+		UpdatedTime:  now,
+	})
+	common.ThrowIfWithMsg(err != nil, common.MysqlError, "记录余额变动日志失败", err)
+}
+
+// 清理红包 Redis 缓存  —— 过期清理(脚本2 按 score 扫出 → ZREM → Go 退款)
+func (s *RedPacketService) CleanRedisCache(redPacketId int64) {
+	poolKey := constants.GetPoolKey(redPacketId)
+	recordKey := constants.GetRecordsKey(redPacketId)
+	_, _ = s.rds.Del(poolKey)
+	_, _ = s.rds.Del(recordKey)
+	_, _ = s.rds.Zrem(constants.ExpireZSet, strconv.FormatInt(redPacketId, 10))
+}
+
+// 计算红包剩余金额（Lua 脚本）
+func (s *RedPacketService) CalculateRemainAmount(ctx context.Context, redPacketId int64) int64 {
+	poolKey := constants.GetPoolKey(redPacketId)
+	calcScript := redis.NewScript(script.CalculateRemainAmountLua)
+	result, err := s.rds.ScriptRunCtx(ctx, calcScript, []string{poolKey})
+	if err != nil || result == nil {
+		return 0
+	}
+	return ToInt64(result)
+}
+
+// 扣减用户余额
+func (s *RedPacketService) DeductBalance(ctx context.Context, userId, amount int64) error {
+	affected, err := s.UserBalanceModel.DeductBalanceTx(ctx, userId, amount)
+	common.ThrowIfWithMsg(err != nil, common.MysqlError, "扣余额失败 DeductBalance", err)
+	common.ThrowIfWithMsg(affected == 0, common.MysqlError, "余额不足 DeductBalance")
+	return nil
+}
+
+// 初始化 Redis 红包金额池
+func (s *RedPacketService) InitRedisPool(redPacketId int64, amounts []int64) {
+	poolKey := constants.GetPoolKey(redPacketId)
+	recordsKey := constants.GetRecordsKey(redPacketId)
+
+	for _, a := range amounts {
+		_, err := s.rds.Rpush(poolKey, strconv.FormatInt(a, 10))
+		common.ThrowIfWithMsg(err != nil, common.RedisError, "红包金额池初始化失败", err)
+	}
+	_ = s.rds.Expire(poolKey, constants.RedisCacheExpireHours*3600)
+	_ = s.rds.Expire(recordsKey, constants.RedisCacheExpireHours*3600)
+
+	// 红包过期时间加入 ZSET
+	expireTimestamp := time.Now().UnixMilli() + constants.ExpireTimeMs
+	_, err := s.rds.Zadd(constants.ExpireZSet, expireTimestamp, strconv.FormatInt(redPacketId, 10))
+	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包过期时间插入失败", err)
 }
