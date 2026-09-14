@@ -42,8 +42,11 @@ const (
 	//用户已领取过该红包
 	AlreadyReceived = -1
 
+	// 抢红包内 Lua 验证红包过期
+	AlreadyExpired = -2
+
 	//红包金额池已空
-	EmptyPool = -2
+	EmptyPool = -3
 
 	//红包尚未被领完
 	CompletionFlagNotCompleted = 0
