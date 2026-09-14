@@ -36,13 +36,9 @@ func (l *GetRedPacketBasicInfoLogic) GetRedPacketBasicInfo(req *types.RedPacketB
 	rp, findErr := l.svcCtx.RedPacketModel.FindOne(l.ctx, req.RedPacketId)
 	common.ThrowIfWithMsg(findErr != nil, common.NotFoundError, "红包不存在", findErr)
 
-	// 2. 计算已领取统计信息
-	receiceList, _ := l.svcCtx.RedPacketReceiveModel.FindByRedPacketId(l.ctx, req.RedPacketId)
-	receivedCount := len(receiceList)
-	var receivedAmountFen int64
-	for _, r := range receiceList {
-		receivedAmountFen += r.Amount
-	}
+	// 2. 计算已领取统计信息（聚合查询，只返回一行）
+	receivedCount, receivedAmountFen, statErr := l.svcCtx.RedPacketReceiveModel.CountSumByRedPacketId(l.ctx, req.RedPacketId)
+	common.ThrowIfWithMsg(statErr != nil, common.SystemError, "统计红包领取信息失败", statErr)
 
 	common.Infof("红包基本信息查询完成，红包ID: %d, 状态: %d, 已领取数量: %d\n", req.RedPacketId, rp.Status, receivedCount)
 
