@@ -1,0 +1,37 @@
+Name: redpacket-api
+Host: 0.0.0.0
+Port: 8888
+
+DataSource: root:Zwh20050512*@tcp(localhost:3306)/infiniteChat?charset=utf8mb4&parseTime=True&loc=Local
+
+Cache:
+    -   Host: 127.0.0.1:6379
+
+Redis:
+    Host: 127.0.0.1:6379
+    Type: node
+
+Kafka:
+    Brokers:
+        - "localhost:9092"
+
+UserRpc:
+    Etcd:
+        Hosts:
+            - localhost:2379
+        Key: user.rpc
+
+
+# 过期红包扫描调度器配置
+ExpirationDispatcher:
+    BatchSize: 500             # 每批最多扫描的红包数量
+    MaxBatchesPerTick: 5       # 每轮最多处理的批次数
+    TimeBudgetMs: 5000        # 5s, 单次扫描的最大时间预算（毫秒），给分布式锁留余量
+
+
+#etcd 服务注册
+Etcd:
+    Endpoints:
+        - localhost:2379
+    RegisterKey: /services/redpacket.api    # 网关通过这个 key 发现本服务
+    PublicIP: 127.0.0.1                     # 本地开发写 127.0.0.1
