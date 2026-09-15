@@ -2,7 +2,9 @@ package red_packet_receive
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"go-infinitechat/common/model/txctx"
 
 	"github.com/zeromicro/go-zero/core/stores/cache"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
@@ -16,6 +18,7 @@ type (
 	RedPacketReceiveModel interface {
 		redPacketReceiveModel
 		// 按红包ID查询所有领取记录
+		InsertTx(ctx context.Context, data *RedPacketReceive) (sql.Result, error)
 		FindByRedPacketId(ctx context.Context, redPacketId int64) ([]*RedPacketReceive, error)
 		// 按红包ID分页查询领取记录
 		FindPageByRedPacketId(ctx context.Context, redPacketId int64, pageNum, pageSize int) ([]*RedPacketReceive, error)
@@ -69,4 +72,13 @@ func (m *customRedPacketReceiveModel) CountSumByRedPacketId(ctx context.Context,
 	}
 	count, sumFen = int(resp.Cnt), resp.Total
 	return
+}
+
+// 如果 ctx 中有事务 session 则走事务连接，否则走原来的 CachedConn
+func (m *customRedPacketReceiveModel) InsertTx(ctx context.Context, data *RedPacketReceive) (sql.Result, error) {
+	if session := txctx.GetSession(ctx); session != nil {
+		query := fmt.Sprintf("insert into %s (%s) values (?, ?, ?, ?, ?, ?, ?)", m.table, redPacketReceiveRowsExpectAutoSet)
+		return session.ExecCtx(ctx, query, data.RedPacketReceiveId, data.RedPacketId, data.ReceiverId, data.Amount, data.ReceivedAt, data.CreatedTime, data.UpdatedTime)
+	}
+	return m.Insert(ctx, data)
 }

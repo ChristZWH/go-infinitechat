@@ -11,9 +11,12 @@ import (
 	"net/http"
 
 	"go-infinitechat/common/common"
+	etcdreg "go-infinitechat/common/etcd"
 	"go-infinitechat/common/middleware"
 	"go-infinitechat/common/utils"
+
 	"go-infinitechat/service/redpacket/api/internal/config"
+	"go-infinitechat/service/redpacket/api/internal/consumer"
 	"go-infinitechat/service/redpacket/api/internal/handler"
 	"go-infinitechat/service/redpacket/api/internal/svc"
 
@@ -59,6 +62,43 @@ func main() {
 
 	ctx := svc.NewServiceContext(c)
 	handler.RegisterHandlers(server, ctx)
+
+	// 启动 Kafka 消费者
+	stopFunc := consumer.StartConsumer(ctx, c)
+	defer func() {
+		for _, stopConsumeFunc := range stopFunc {
+			stopConsumeFunc()
+		}
+	}()
+
+	// 注意 defer 的注册顺序（本质是入栈）
+	// 先注册 KafkaPusherManager.Close()（最后执行）
+	// 再注册 dispatcherCancel()（先执行）
+	// 这样关闭顺序是：停调度器 → 停消费者 → 关 Kafka → 停 server
+	//
+	// 关闭 KafkaRusher（后关）
+	if ctx.KafkaPusherManager != nil {
+		defer ctx.KafkaPusherManager.Close()
+	}
+
+	// 启动过期红包扫描调度器（先停）
+
+	if c.Etcd.RegisterKey != "" {
+		host := c.Etcd.PublicIP
+		if host == "" {
+			host = c.Host
+		}
+		reg, err := etcdreg.RegisterHTTPService(etcdreg.RegisterOptions{
+			Endpoints: c.Etcd.Endpoints,
+			Key:       c.Etcd.RegisterKey,
+			Addr:      fmt.Sprintf("%s:%d", host, c.Port),
+		})
+		if err != nil {
+			common.Errorf("etcd 注册失败：%s", err.Error())
+		} else if reg != nil {
+			defer reg.Close()
+		}
+	}
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
 	server.Start()
