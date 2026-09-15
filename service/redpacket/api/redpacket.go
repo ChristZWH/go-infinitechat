@@ -18,6 +18,7 @@ import (
 	"go-infinitechat/service/redpacket/api/internal/config"
 	"go-infinitechat/service/redpacket/api/internal/consumer"
 	"go-infinitechat/service/redpacket/api/internal/handler"
+	"go-infinitechat/service/redpacket/api/internal/schedular"
 	"go-infinitechat/service/redpacket/api/internal/svc"
 
 	"github.com/zeromicro/go-zero/core/conf"
@@ -56,33 +57,36 @@ func main() {
 	})
 
 	server := rest.MustNewServer(c.RestConf)
-	// 注册中间件
+	// 注册中间件 全局异常处理
 	server.Use(middleware.RecoverMiddleWare)
 	defer server.Stop()
 
-	ctx := svc.NewServiceContext(c)
-	handler.RegisterHandlers(server, ctx)
+	svcCtx := svc.NewServiceContext(c)
+	handler.RegisterHandlers(server, svcCtx)
 
 	// 启动 Kafka 消费者
-	stopFunc := consumer.StartConsumer(ctx, c)
+	stopFunc := consumer.StartConsumer(svcCtx, c)
 	defer func() {
 		for _, stopConsumeFunc := range stopFunc {
 			stopConsumeFunc()
 		}
 	}()
 
-	// 注意 defer 的注册顺序（本质是入栈）
-	// 先注册 KafkaPusherManager.Close()（最后执行）
-	// 再注册 dispatcherCancel()（先执行）
-	// 这样关闭顺序是：停调度器 → 停消费者 → 关 Kafka → 停 server
+	// 注意 defer 的执行顺序（本质是入栈，后注册的先执行）
+	// 注册顺序：server.Stop → 停消费者 → KafkaPusherManager.Close → dispatcherCancel
+	// 退出顺序：停调度器 → 关 Kafka → 停消费者 → 停 server
 	//
-	// 关闭 KafkaRusher（后关）
-	if ctx.KafkaPusherManager != nil {
-		defer ctx.KafkaPusherManager.Close()
+	// 关闭 KafkaPusher（生产者连接）
+	if svcCtx.KafkaPusherManager != nil {
+		defer svcCtx.KafkaPusherManager.Close()
 	}
 
 	// 启动过期红包扫描调度器（先停）
+	dispatcherCtx, dispatcherCancel := context.WithCancel(context.Background())
+	defer dispatcherCancel()
+	go schedular.StartExpirationDispatcher(dispatcherCtx, svcCtx)
 
+	// 注册 etcd （网关服务发现）
 	if c.Etcd.RegisterKey != "" {
 		host := c.Etcd.PublicIP
 		if host == "" {
