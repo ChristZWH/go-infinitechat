@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	"go-infinitechat/common/common"
+	etcdreg "go-infinitechat/common/etcd"
 	"go-infinitechat/common/middleware"
 	"go-infinitechat/common/utils"
 	"go-infinitechat/service/user/api/internal/config"
@@ -58,6 +59,24 @@ func main() {
 
 	ctx := svc.NewServiceContext(c)
 	handler.RegisterHandlers(server, ctx)
+
+	// 注册到 etcd（网关服务发现）
+	if c.Etcd.RegisterKey != "" {
+		host := c.Etcd.PublicIp
+		if host == "" {
+			host = c.Host // fallback 本地开发
+		}
+		reg, err := etcdreg.RegisterHTTPService(etcdreg.RegisterOptions{
+			Endpoints: c.Etcd.Endpoints,
+			Key:       c.Etcd.RegisterKey,
+			Addr:      fmt.Sprintf("%s:%d", host, c.Port),
+		})
+		if err != nil {
+			common.Errorf("etcd 注册失败: %s", err.Error())
+		} else if reg != nil {
+			defer reg.Close()
+		}
+	}
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
 	server.Start()
