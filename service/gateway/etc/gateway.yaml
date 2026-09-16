@@ -1,0 +1,76 @@
+Name: gateway
+Host: 0.0.0.0
+Port: 10010
+
+Redis:
+    Host: localhost:6379
+    Pass: ""
+    Type: node
+
+# Etcd 服务发现
+# 可选。不配则所有路由必须用 http:// 写死的静态地址
+Etcd:
+    Endpoints:
+        - localhost:2379
+
+# 认证白名单（不需要Token）
+Auth:
+    WhiteList:
+        - "/api/user/sendCaptcha"
+        - "/api/user/register"
+        - "/api/user/loginPassword"
+        - "/api/user/loginCode"
+
+# CORS 跨域配置
+Cors:
+    AllowedOrigins:
+        - "http://localhost:10010"
+        - "http://localhost:3000"
+        - "http://localhost:5173"
+    AllowedMethods:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+        - "PATCH"
+        - "OPTIONS"
+    AllowedHeaders: "*"
+    AllowCredentials: true
+    MaxAge: 36000
+
+# 路由配置
+# Upstream 支持两种写法：
+#   etcd://{RegisterKey}    动态服务发现，从 etcd 前缀下的所有实例里轮询
+#   http://host:port         静态单实例（给暂时无法接入 etcd 的外部服务用）
+Routes:
+    -   Id: UserService
+        Upstream: "etcd:///services/user.api"     #和user-api.yaml的RegisterKey配置对应
+        Prefixes:
+            - "/api/user"
+            - "/api/contact"
+            - "/api/group"
+
+    -   Id: OfflineDataService
+        Upstream: "etcd:///services/offline.api"     #和offline-api.yaml的RegisterKey配置对应
+        Prefixes:
+            - "/api/offline"
+
+    -   Id: RedPacketService
+        Upstream: "etcd:///services/redpacket.api"     #和redpacket-api.yaml的RegisterKey配置对应
+        Prefixes:
+            - "/api/chat/redPacket"
+
+    -   Id: AiService
+        Upstream: "http://localhost:8886"     #加入是没有注册在etcd中的服务
+        Prefixes:
+            - "/api/ai"
+
+# 超时配置（毫秒）
+Timeout:
+    Connect: 60000
+    Response: 60000
+
+Log:
+    Mode: console
+    Stat: false
+    Level: info
