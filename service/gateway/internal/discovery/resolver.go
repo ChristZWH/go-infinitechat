@@ -114,22 +114,22 @@ func (r *Resolver) watch(ctx context.Context) {
 
 // HasInstances 是否存在可用实例
 func (r *Resolver) HasInstance() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return len(r.instance) > 0
 }
 
 // Size 当前实例数
 func (r *Resolver) Size() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return len(r.instance)
 }
 
 // Close 停止 watch（不关闭 etcd client，由调用方负责）
 func (r *Resolver) Close() {
 	if r != nil && r.cancel != nil {
-		r.Close()
+		r.cancel()
 	}
 }
 
@@ -141,7 +141,7 @@ func parseAddr(addr string) *url.URL {
 	if addr == "" {
 		return nil
 	}
-	if !strings.HasPrefix(addr, "http://") || !strings.HasPrefix(addr, "https://") {
+	if !strings.HasPrefix(addr, "http://") && !strings.HasPrefix(addr, "https://") {
 		addr = "http://" + addr
 	}
 	url, err := url.Parse(addr)
