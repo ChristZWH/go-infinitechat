@@ -12,7 +12,7 @@ import (
 type Config struct {
 	rest.RestConf
 	Redis redis.RedisConf
-
+	// go-zero model 层缓存配置
 	Cache cache.CacheConf `json:"cache,optional"`
 
 	Minio struct {
@@ -26,11 +26,11 @@ type Config struct {
 	Etcd struct {
 		Endpoints   []string
 		Prefix      string
-		RegisterKey string
-		PublicIp    string
+		RegisterKey string `json:",optional"`
+		PublicIp    string `json:",optional"`
 	}
 
 	Kafka struct {
-		Brokers []string
+		Brokers []string `json:",optional"`
 	}
 }
