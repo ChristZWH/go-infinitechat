@@ -33,7 +33,7 @@ type EtcdConfig struct {
 
 // 认证配置
 type AuthConfig struct {
-	WiteList []string
+	WhiteList []string
 }
 
 // 跨域配置
