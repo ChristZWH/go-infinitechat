@@ -41,7 +41,11 @@ func (c *ClientConn) WriteMessage(messageType int, data []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.conn.SetWriteDeadline(time.Now().Add(WriteTimeout))
-	return c.conn.WriteMessage(messageType, data)
+	if err := c.conn.WriteMessage(messageType, data); err != nil {
+		c.conn.Close()
+		return err
+	}
+	return nil
 }
 
 // 以下读侧方法直接透传，不需要加锁：

@@ -43,14 +43,6 @@ func AllocateRandomRedPacket(totalAmount int64, totalCount int) ([]int64, error)
 	}
 
 	remainAmount := totalAmount - int64(totalCount)*MinAmount
-	// 刚好满足最低金额，无需分配，直接返回
-	if remainAmount == 0 {
-		amount := make([]int64, 0, totalCount)
-		for item := range amount {
-			amount[item] = MinAmount
-		}
-		return amount, nil
-	}
 
 	// 切点法需要 totalCount+1 个互不相同的整数点，而区间 [0, remainAmount]
 	// 只有 remainAmount+1 个整数；remainAmount < totalCount 时点数不够，
