@@ -90,6 +90,7 @@ func (s *RedPacketService) ExecuteReceiveLua(ctx context.Context, redPacketId, u
 		common.ThrowWithMsg(common.SystemError, "Lua脚本返回值异常")
 	}
 
+	// 返回值没有异常，说明抢到红包；第一个参数表示强到的金额，第二个参数表示是否还有剩余
 	resultCode = ToInt64(resultList[0])
 	if len(resultList) > 1 {
 		completed = ToInt64(resultList[1])
@@ -229,7 +230,7 @@ func (s *RedPacketService) InitRedisPool(redPacketId int64, amounts []int64) {
 	_ = s.rds.Expire(recordsKey, constants.RedisCacheExpireHours*3600)
 
 	// 红包过期时间加入 ZSET
-	expireTimestamp := time.Now().UnixMilli() + constants.ExpireTimeMs
+	expireTimestamp := time.Now().UnixMilli() + constants.ExpireTimeMs // 当前时间加上 未来 24小时 的时间
 	_, err := s.rds.Zadd(constants.ExpireZSet, expireTimestamp, strconv.FormatInt(redPacketId, 10))
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包过期时间插入失败", err)
 }
