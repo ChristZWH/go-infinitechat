@@ -233,6 +233,7 @@ func (cr *CanalRunner) storeMessageToRedis(msg *MessageRedisResponse) {
 	// 4.  写入 Redis 四件套
 	// 4.1 存储消息到会话 ZSet + 清理 7 天前旧消息
 	_, _ = cr.rds.Zadd(redisKey, score, string(messageJson))
+	// 删掉 score 在 0(0可以理解为 负无穷 )-7 之间的所有消息 [min,max]
 	cr.rds.Zremrangebyscore(redisKey, 0, time.Now().UnixMilli()-constants.SevenDaysMillis)
 
 	// 4.2 更新活跃会话（目前有问题，此会话为全局活跃榜，应更正为当前用户活跃榜单，用户聊天列表排序）

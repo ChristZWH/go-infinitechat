@@ -42,7 +42,7 @@ func StartExpirationDispatcher(ctx context.Context, svcCtx *svc.ServiceContext) 
 		case <-ctx.Done():
 			// 收到关闭信号
 			common.Info("过期红包扫描调度器已停止")
-			return
+			return // 函数退出调用 ticker.Stop()
 		case <-ticker.C:
 			// 每一秒触发一次扫描调度
 			dispatch(ctx, svcCtx, scanScript)

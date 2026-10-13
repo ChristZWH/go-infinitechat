@@ -90,7 +90,7 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 	}
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包金额分配失败")
 
-	// 初始化 Redis 红包金额池 + 过期 ZSET
+	// 初始化 Redis 红包金额池 + 设置红包过期时间 ZSET
 	l.svcCtx.RedPacketService.InitRedisPool(redPacketId, amounts)
 
 	// 发红包消息到 Kafka (store + push)

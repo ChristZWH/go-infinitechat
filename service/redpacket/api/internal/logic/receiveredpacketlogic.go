@@ -88,6 +88,8 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 		"receivedAmount": amount,
 		"receivedTime":   time.Now().UnixMilli(),
 	})
+	// 业务没有发送成功没有重试，也不进行重试，失败结果：
+	// LPOP 确实抢到金额了，但是只存在于 Redis 中，消费端 事务三步骤并不会执行落库操作
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "Kafka 消息推送失败 TopicRedpacketReceive", err)
 
 	if constants.IsCompleted(completed) {
@@ -95,6 +97,7 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 		err := l.svcCtx.KafkaPusherManager.Push(l.ctx, constants.TopicRedpacketCompleted, map[string]interface{}{
 			"redPacketId": req.RedPacketId,
 		})
+		// 和上面 Kafka 推送失败一样
 		common.ThrowIfWithMsg(err != nil, common.SystemError, "Kafka 消息推送失败 TopicRedpacketCompleted", err)
 	}
 
