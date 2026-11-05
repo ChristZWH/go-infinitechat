@@ -16,10 +16,9 @@ Etcd:
 # 认证白名单（不需要Token）
 Auth:
     WhiteList:
-        - "/api/user/sendCaptcha"
-        - "/api/user/register"
-        - "/api/user/loginPassword"
-        - "/api/user/loginCode"
+        - "/api/user/sendCaptcha"   # 发送验证码（GET）
+        - "/api/user/users"         # 注册（POST，见 handler/routes.go）
+        - "/api/user/login"         # 登录（POST，密码 / 验证码二合一）
 
 # CORS 跨域配置
 Cors:
