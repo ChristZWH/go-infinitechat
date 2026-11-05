@@ -6,6 +6,7 @@ package group
 import (
 	"context"
 
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 	"go-infinitechat/service/user/api/internal/types/dto"
@@ -29,5 +30,7 @@ func NewCreateGroupLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Creat
 
 // 创建群聊
 func (l *CreateGroupLogic) CreateGroup(req *types.CreateGroupRequest) (resp *dto.CreateGroupResponse, err error) {
+	// 群主只能是"我"
+	identity.OverrideIfPresent(l.ctx, &req.CreatorId)
 	return l.svcCtx.GroupService.CreateGroup(l.ctx, req), nil
 }

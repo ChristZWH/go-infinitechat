@@ -6,6 +6,7 @@ package group
 import (
 	"context"
 
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -28,5 +29,7 @@ func NewExitGroupLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ExitGro
 
 // 退群
 func (l *ExitGroupLogic) ExitGroup(req *types.GroupExitRequest) (bool, error) {
+	// 退群的是"我"
+	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	return l.svcCtx.GroupService.ExitGroup(l.ctx, req), nil
 }

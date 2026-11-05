@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -30,9 +31,11 @@ func NewUpdateAvatarLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Upda
 }
 
 func (l *UpdateAvatarLogic) UpdateAvatar(req *types.UpdateAvatarRequest) (bool, error) {
+	// 只能改"我"的头像
+	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	user, err := l.svcCtx.UserService.GetUserById(req.UserId)
 	// 区分"用户不存在"和系统错误：DB 故障不能返回 404
-	common.ThrowIf(err != nil && errors.Is(err, sqlx.ErrNotFound), common.SystemError, err)
+	common.ThrowIf(err != nil && !errors.Is(err, sqlx.ErrNotFound), common.SystemError, err)
 	common.ThrowIf(user == nil, common.NotFoundError)
 
 	l.svcCtx.UserService.UpdateAvatar(l.ctx, req.UserId, req.URL)

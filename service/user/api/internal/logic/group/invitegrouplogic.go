@@ -6,6 +6,7 @@ package group
 import (
 	"context"
 
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -28,5 +29,7 @@ func NewInviteGroupLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Invit
 
 // 邀请
 func (l *InviteGroupLogic) InviteGroup(req *types.InviteGroupRequest) (resp *types.InviteGroupResponse, err error) {
+	// 邀请人只能是"我"
+	identity.OverrideIfPresent(l.ctx, &req.InviterId)
 	return l.svcCtx.GroupService.InviteGroup(l.ctx, req), nil
 }

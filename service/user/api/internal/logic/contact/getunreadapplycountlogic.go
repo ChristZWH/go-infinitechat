@@ -6,6 +6,7 @@ package contact
 import (
 	"context"
 
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -27,6 +28,8 @@ func NewGetUnreadApplyCountLogic(ctx context.Context, svcCtx *svc.ServiceContext
 }
 
 func (l *GetUnreadApplyCountLogic) GetUnreadApplyCount(req *types.UserIdPathRequest) (resp map[string]int64, err error) {
+	// 只能统计"我"的未读申请
+	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	count := l.svcCtx.ApplyFriendServer.GetUnreadCount(l.ctx, req.UserId)
 	return map[string]int64{"count": count}, nil
 }

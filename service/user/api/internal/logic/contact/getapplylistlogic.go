@@ -6,6 +6,7 @@ package contact
 import (
 	"context"
 
+	"go-infinitechat/common/identity"
 	dto2 "go-infinitechat/common/model/dto"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
@@ -30,5 +31,7 @@ func NewGetApplyListLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetA
 
 // 获取好友申请列表
 func (l *GetApplyListLogic) GetApplyList(req *types.FriendApplyListRequest) (resp *dto2.PageResponse[dto.ApplyFriendDTO], err error) {
+	// 只能看"我"收到的申请
+	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	return l.svcCtx.ApplyFriendServer.GetReceivedRequestsWithUserInfo(l.ctx, req.UserId, int32(req.PageNum), int32(req.PageSize)), nil
 }

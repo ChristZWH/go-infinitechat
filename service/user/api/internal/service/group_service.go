@@ -315,6 +315,14 @@ func (gs *GroupService) validatePermission(ctx context.Context, sessionId, userI
 	common.ThrowIfWithMsg(us.Role != RoleGroupOwner && us.Role != RoleGroupAdmin, common.NoAuthError, "只有群主或管理员才能执行此操作")
 }
 
+// EnsureGroupMember 校验 userId 是该会话的成员（只要求是成员，不要求管理员）。
+// 用于读取类接口（成员列表、成员人数）的会话维度授权。
+func (gs *GroupService) EnsureGroupMember(ctx context.Context, sessionId, userId int64) {
+	us, err := gs.UserSessionModel.FindOne(ctx, userId, sessionId)
+	common.ThrowIfWithMsg(err != nil || us == nil, common.NoAuthError, "您不在该群聊中")
+	common.ThrowIfWithMsg(us.Status != constants.StatusSuccess, common.NoAuthError, "您已不在该群聊中")
+}
+
 func (gs *GroupService) filterExistingMembers(ctx context.Context, sessionId int64, candidateIds []int64, failedIds *[]int64) []int64 {
 	var valid []int64
 	for _, cid := range candidateIds {

@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	commonconstants "go-infinitechat/common/model/constants"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
@@ -31,6 +32,8 @@ func NewLogoutLogic(ctx context.Context, svcCtx *svc.ServiceContext) *LogoutLogi
 }
 
 func (l *LogoutLogic) Logout(req *types.UserIdRequest) (bool, error) {
+	// 只能登出"我"的会话
+	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	indexKey := constants.UserRefreshTokenKeyPrefix + strconv.FormatInt(req.UserId, 10)
 	refreshToken, err := l.svcCtx.Redis.Get(indexKey)
 	common.ThrowIf(err != nil, common.SystemError, err)

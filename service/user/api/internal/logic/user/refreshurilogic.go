@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	commonconstants "go-infinitechat/common/model/constants"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
@@ -30,6 +31,8 @@ func NewRefreshUriLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Refres
 }
 
 func (l *RefreshUriLogic) RefreshUri(req *types.UserIdRequest) (string, error) {
+	// 只能刷新"我"的 WS 路由
+	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	wsServerUri := l.svcCtx.WsServerLocator.GetWsServerUri(strconv.FormatInt(req.UserId, 10))
 	common.ThrowIfWithMsg(wsServerUri == "", common.SystemError, "WS服务暂不可用, 请稍后重试")
 	l.svcCtx.Redis.Hset(commonconstants.RedisWsServerUri, strconv.FormatInt(req.UserId, 10), wsServerUri)

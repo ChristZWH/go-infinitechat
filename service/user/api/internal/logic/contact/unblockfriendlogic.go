@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -28,6 +29,8 @@ func NewUnblockFriendLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Unb
 }
 
 func (l *UnblockFriendLogic) UnblockFriend(req *types.UserIdAndReceiveUserIdRequest) (bool, error) {
+	// 只能解除"我"的拉黑
+	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	common.ThrowIfWithMsg(req.UserId <= 0, common.UserNotExists, "用户不存在")
 	common.ThrowIfWithMsg(req.ReceiveUserId <= 0, common.UserNotExists, "用户不存在")
 

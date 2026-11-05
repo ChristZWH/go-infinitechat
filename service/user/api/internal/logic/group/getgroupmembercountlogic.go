@@ -6,6 +6,8 @@ package group
 import (
 	"context"
 
+	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -28,5 +30,9 @@ func NewGetGroupMemberCountLogic(ctx context.Context, svcCtx *svc.ServiceContext
 
 // 获取群聊人数
 func (l *GetGroupMemberCountLogic) GetGroupMemberCount(req *types.SessionIdPathRequest) (resp int, err error) {
+	// 会话维度的授权：必须是群成员才能看人数
+	userId, ok := identity.UserId(l.ctx)
+	common.ThrowIf(!ok, common.PleaseLogin)
+	l.svcCtx.GroupService.EnsureGroupMember(l.ctx, req.SessionId, userId)
 	return l.svcCtx.GroupService.GetGroupMemberCount(l.ctx, req.SessionId), nil
 }

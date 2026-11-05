@@ -6,6 +6,7 @@ package contact
 import (
 	"context"
 
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -27,5 +28,7 @@ func NewSendFriendRequestLogic(ctx context.Context, svcCtx *svc.ServiceContext) 
 }
 
 func (l *SendFriendRequestLogic) SendFriendRequest(req *types.SendFriendApplyRequest) (resp bool, err error) {
+	// 申请人只能是"我"
+	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	return l.svcCtx.ApplyFriendServer.SendFriendRequest(l.ctx, req.UserId, req.ReceiveUserId, req.Msg) > 0, nil
 }

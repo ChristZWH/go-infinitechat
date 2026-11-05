@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -28,6 +29,8 @@ func NewModifyFriendApplicationStatusLogic(ctx context.Context, svcCtx *svc.Serv
 }
 
 func (l *ModifyFriendApplicationStatusLogic) ModifyFriendApplicationStatus(req *types.ModifyFriendApplyStatusRequest) (interface{}, error) {
+	// 只能处理"我"收到的申请
+	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	common.ThrowIfWithMsg(req.UserId <= 0, common.UserNotExists, "用户不存在")
 	common.ThrowIfWithMsg(len(req.ApplyUserIds) <= 0, common.UserNotExists, "用户不存在")
 	return l.svcCtx.ApplyFriendServer.ModifyApplicationStatus(l.ctx, req.UserId, req.ApplyUserIds, req.Status), nil
