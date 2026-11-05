@@ -9,17 +9,17 @@
 **原状**：网关鉴权后把身份写入 `X-User-Id`，但全仓库没有任何服务读取它；所有接口的 userId 来自 URL path 或请求体 → 任意登录用户可操作他人。
 
 **已完成**（见 [auth.md](auth.md)）：
-1. ✅ `common/identity` 提供 ctx 读写，`HeaderUserId` 统一定义
+1. ✅ `common/identity` 提供 ctx 读写与 `OverrideIfPresent`，`HeaderUserId` 统一定义
 2. ✅ 网关校验路径 `/users/{id}` 与 token 身份一致，不一致 403；并删除客户端自带的同名头
-3. ✅ user.api 注册 `IdentityMiddleware`，把身份解析进 context
-4. ✅ 4 个代表性接口改为以 ctx 身份为准：用户信息、余额、余额明细、删好友
-5. ✅ 网关路径校验、中间件解析、ctx 读写均有单测
+3. ✅ `IdentityMiddleware` 下沉到 `common/middleware`，user.api / offline / redpacket 三服务共用
+4. ✅ 全部 user.api logic 迁移到 ctx 身份；群成员列表/人数增加会话归属校验
+5. ✅ offline 历史/离线消息增加会话归属校验；redpacket 领取/发送以身份为准 + 禁止领自己的包
+6. ✅ 均有单测（网关路径校验、中间件解析、ctx 读写、EnsureGroupMember、ensureSessionMember）
 
 **剩余**：
-- [ ] 其余 20+ 个 user.api 接口的 logic 迁移到 ctx 身份（网关已兜底，但直连服务时缺第二道防线）
-- [ ] 会话维度授权：`/api/group/{sessionId}/members`、`/api/offline/...` 校验"我在这个会话里"
-- [ ] redpacket 领取/发送改用 ctx 身份，并校验"不能领自己的包"
 - [ ] user.rpc 的内部调用鉴权（当前信任调用方传入的 senderId）
+- [ ] 收口口径统一：`ValidateGroupMessage` 与 `EnsureGroupMember` 的成员判定都过滤 `status=0`
+- [ ] 生产环境把 `OverrideIfPresent` 的回退语义改为强制 `MustUserId`（直连也不放行）
 
 ### 2. 手机验证码写死 `123456`
 

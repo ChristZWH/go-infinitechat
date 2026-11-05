@@ -80,11 +80,12 @@ if userId, ok := identity.UserId(l.ctx); ok {
 | 网关路径校验（覆盖所有 `/users/{id}` 接口） | ✅ 已上线 |
 | 网关注入 + 删除伪造头 | ✅ 已上线 |
 | `common/identity`（ctx 读写） | ✅ 已有测试 |
-| user.api `IdentityMiddleware` | ✅ 已注册到 `server.Use` |
-| `UserInfo` / `GetUserBalance` / `GetBalanceDetail` / `DeleteFriend` | ✅ 已改为 ctx 身份 |
-| 其余 user.api 接口（好友申请、群操作、拉黑等） | ⏳ 由网关路径校验兜底，logic 尚未逐个迁移 |
-| offline 接口（历史/离线消息） | ⏳ 仍只按 sessionId 取数，需要会话归属校验 |
-| redpacket 领取 | ⏳ userId 仍来自请求体 |
+| `IdentityMiddleware`（下沉到 `common/middleware`，user.api / offline / redpacket 三服务共用） | ✅ 已注册 |
+| 全部 user.api logic 以 ctx 身份为准（好友、申请、群、登出、改头像等 20+ 处） | ✅ 已迁移 |
+| 群成员列表 / 群人数：`EnsureGroupMember` 会话归属校验 | ✅ 已上线 |
+| offline 历史消息 / 离线消息：`ensureSessionMember` 会话归属校验 | ✅ 已上线 |
+| redpacket 领取 / 发送：以 ctx 身份为准 + 禁止领自己的红包 | ✅ 已上线 |
+| user.rpc 的内部调用鉴权（当前信任调用方传入的 senderId） | ⏳ 未做 |
 
 ## 5. 测试
 
@@ -97,7 +98,6 @@ if userId, ok := identity.UserId(l.ctx); ok {
 
 ## 6. 还没做的部分
 
-1. **logic 全量迁移**：剩余 20+ 接口仍用 `req.UserId`。虽然网关已经拦住跨用户访问，但"服务被直连"时没有第二道防线。建议按目录批量替换，并用一个 fake ctx 的单测模式守护。
-2. **会话维度授权**：`/api/group/{sessionId}/members`、`/api/offline/...` 需要校验"我在这个会话里"。可以在 middleware 里读 `pathvar` 后查 `user_session`，也可以在 logic 里统一调 `UserSessionService`。
-3. **红包身份**：领取/发送的 userId 应取 ctx，同时校验 `不能领自己的包`。
-4. **RPC 侧**：`user.rpc` 的调用方目前信任传入的 senderId（realtime/offline 传的），后续可加内部鉴权（mTLS 或签名）。
+1. **RPC 侧鉴权**：`user.rpc` 的调用方（realtime/offline）目前信任传入的 senderId。建议后续加内部鉴权（mTLS 或签名），因为内网服务之间的边界也可能被攻破。
+2. **收口校验的下沉**：`EnsureGroupMember` / `ensureSessionMember` 目前只挡了成员列表、人数、历史消息、离线消息四个入口。群聊**发消息**的成员校验在 `user.rpc.ValidateGroupMessage` 里（属于另一条链路，见 [services.md](services.md)），需要确认两处口径一致（都过滤 `status=0`）。
+3. **红包身份的回退**：`OverrideIfPresent` 在没有 `X-User-Id` 时保留请求参数（兼容直连调试），意味着"绕过网关直连服务"仍可能伪造。生产环境可改成 `MustUserId` 强制要求身份。

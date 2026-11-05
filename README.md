@@ -156,8 +156,8 @@ go test ./service/user/model/ -v
 
 - ✅ 用户/好友/群组/消息/通知/红包主链路已打通
 - ✅ 单元测试覆盖：红包算法、分页、错误码、好友缓存 key、连接管理、JWT、网关路由与白名单、身份中间件
-- ✅ 越权收口：网关校验 `/users/{id}` 与登录身份一致，服务侧把身份解析进 context（详见 [docs/auth.md](docs/auth.md)）
-- ⚠️ 会话维度授权（群成员、离线消息、红包）仍需服务端自行校验，见 [docs/roadmap.md](docs/roadmap.md) 第 1 节
+- ✅ 越权收口：网关校验 `/users/{id}` 与登录身份一致；服务侧把身份解析进 context，user.api / offline / redpacket 全部以登录态为准，群成员与消息读取增加会话归属校验（详见 [docs/auth.md](docs/auth.md)）
+- ⚠️ user.rpc 的内部调用仍信任传入的 senderId（见 [docs/roadmap.md](docs/roadmap.md) 第 1 节）
 - ⚠️ 配置里有本地开发用的明文口令，勿直接用于公网
 
 ## 说明
