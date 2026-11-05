@@ -35,6 +35,8 @@ func NewHistoricalMessageLogic(ctx context.Context, svcCtx *svc.ServiceContext) 
 // 场景：上滑聊天框加载聊天历史记录
 func (l *HistoricalMessageLogic) HistoricalMessage(req *types.HistoryMessageRequest) (resp []types.OfflineHistoryMessageResponse, err error) {
 	sessionId := req.SessionId
+	// 会话归属校验：必须是该会话成员才能看历史消息
+	ensureSessionMember(l.ctx, l.svcCtx.UserRpc, sessionId)
 	limit := constants.LimitMessageCount //30
 
 	// 解析客户端传来的时间字符串

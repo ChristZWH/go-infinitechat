@@ -39,6 +39,9 @@ func (l *OfflineMessageLogic) OfflineMessage(req *types.OfflineMessageRequest) (
 		return []types.OfflineHistoryMessageResponse{}, nil
 	}
 
+	// 会话归属校验：必须是该会话成员才能拉离线消息
+	ensureSessionMember(l.ctx, l.svcCtx.UserRpc, req.SessionId)
+
 	// 先从 Redis 中拉数据（只存了七天内的热消息）
 	result := []types.OfflineHistoryMessageResponse{}
 	redisMessages := GetOfflineMessagesFromRedis(l.svcCtx.Redis, req.SessionId, req.UnreadOfflineCount)

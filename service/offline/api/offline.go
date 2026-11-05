@@ -58,8 +58,9 @@ func main() {
 	})
 
 	server := rest.MustNewServer(c.RestConf)
-	// 注册中间件
+	// 注册中间件：Recover 兜底，Identity 解析网关注入的身份（离线/历史消息要做会话归属校验）
 	server.Use(middleware.RecoverMiddleWare)
+	server.Use(middleware.IdentityMiddleware)
 	defer server.Stop()
 
 	ctx := svc.NewServiceContext(c)
