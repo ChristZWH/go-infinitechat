@@ -27,7 +27,8 @@ TEST_MYSQL_DSN='root:password@tcp(127.0.0.1:3306)/infiniteChat?charset=utf8mb4&p
 |---|---|---|
 | 纯函数单测 | 无 | 红包金额拆分、分页计算、错误码、缓存 key、金额转换、JWT |
 | 逻辑单测（fake model） | 无 | RPC logic 的控制流（批量查用户、群成员） |
-| 中间件/网关单测 | 无（httptest） | 白名单、401 响应、路由前缀匹配 |
+| 模型层单测（sqlmock） | go-sqlmock | 手写 SQL 的列名/参数、事务路径、affected rows 语义 |
+| 中间件/网关单测 | 无（httptest） | 白名单、401/403、路由前缀匹配、身份中间件 |
 | 并发单测 | 真实 WebSocket（httptest） | 连接管理器双向映射、踢旧连接、`-race` |
 | 结构回归（可选） | MySQL | 手写 SQL 的列名/语法是否与真实表一致 |
 
@@ -46,6 +47,16 @@ TEST_MYSQL_DSN='root:password@tcp(127.0.0.1:3306)/infiniteChat?charset=utf8mb4&p
 | `service/gateway/internal/handler/route_test.go` | 前缀匹配、首个命中、无路由 |
 | `service/gateway/internal/middleware/auth_test.go` | 白名单精确匹配、缺 token 401、白名单放行 |
 | `service/user/model/schema_test.go` | 用 `EXPLAIN` 校验 6 条手写 SQL 的列名（需 `TEST_MYSQL_DSN`） |
+| `service/user/model/user_balance/userbalancemodel_test.go` | 扣款/加余额（事务路径 + 余额不足 + 报错回滚） |
+| `service/user/model/apply_friend/applyfriendmodel_test.go` | 申请列表分页（计数/分页错误必须上抛） |
+| `service/user/model/user_session/usersessionmodel_test.go` | 群成员查询锁住 `session_id` 条件 |
+| `service/redpacket/model/red_packet/redpacketmodel_test.go` | 过期退款条件更新 affected=1/0/回滚 |
+| `service/user/api/internal/service/balance_service_test.go` | 余额初始化各分支、查余额分转元 |
+| `service/user/api/internal/service/group_service_test.go` | 群成员归属校验（成员/非成员/已退出） |
+| `common/model/txctx/txctx_test.go` | session 注入、嵌套事务复用、panic 转 error |
+| `common/utils/utils_test.go` | 雪花 ID 唯一、RandomNumber、Success/Fail |
+| `common/common/validator_test.go` | 校验消息解析 |
+| `service/gateway/internal/discovery/resolver_test.go` | 地址解析、轮询负载 |
 
 ## 4. 这些测试在防什么
 

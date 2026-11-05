@@ -80,10 +80,11 @@
 
 ## P3 测试与文档
 
-- [ ] handler → logic → MySQL 的端到端测试（sqlmock 或测试库）
+- [ ] handler → logic → MySQL 的端到端测试（testcontainers 或本地测试库）
 - [ ] Kafka 消费语义（offset、重投、幂等）的集成测试
 - [ ] Canal 解析与重连的测试
 - [ ] 多节点推送测试（依赖上面的跨节点方案）
 - [x] 单元测试：红包算法、分页、错误码、缓存 key、连接管理、JWT、网关路由
+- [x] 模型层手写 SQL 与事务路径（sqlmock）
 - [x] 真实库结构回归测试（`TEST_MYSQL_DSN`）
 - [x] docs/ 目录与 README 拆分
