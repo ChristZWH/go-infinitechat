@@ -108,8 +108,11 @@ func startMessageStoreConsumer(c config.Config, svcCtx *svc.ServiceContext) {
 		Group:      c.Kafka.MessageStoreConsumerGroup,
 		Topic:      constants.KafkaMessageTopicStore, // 消费store-topic，持久化到MySQL中
 		Offset:     "last",
-		Consumers:  4,
-		Processors: 4,
+		// 关键：kq 的 ForceCommit 默认为 true，即 handler 返回 error 也会提交 offset。
+		// 显式关掉，落库失败时至少不会立刻把位点推过去（配合 consumer 内的有限重试）。
+		ForceCommit: false,
+		Consumers:   4,
+		Processors:  4,
 	}, msgConsumer)
 	defer q.Stop()
 
@@ -126,8 +129,10 @@ func startNotificationStoreConsumer(c config.Config, svcCtx *svc.ServiceContext)
 		Group:      c.Kafka.NotificationStoreConsumerGroup,
 		Topic:      constants.KafkaStoreNotificationTopic, // 消费 store-notification-topic，持久化到MySQL 中
 		Offset:     "last",
-		Consumers:  3,
-		Processors: 3,
+		// 同 MessageStoreConsumer：关掉 ForceCommit，避免写库失败也推进位点
+		ForceCommit: false,
+		Consumers:   3,
+		Processors:  3,
 	}, notifConsumer)
 	defer q.Stop()
 
