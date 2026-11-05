@@ -73,7 +73,7 @@ func (m *customApplyFriendModel) DeleteTx(ctx context.Context, applyFriendId int
 func (m *customApplyFriendModel) FindPageByUserIdWithPagination(ctx context.Context, userId int64, pageNum, pageSize int32) ([]*ApplyFriend, int64, error) {
 	// 先查总数
 	var total int64
-	query := fmt.Sprintf("select count(*) from %s where `sender_id` = ? or `receiver_id = ?`", m.table)
+	query := fmt.Sprintf("select count(*) from %s where `sender_id` = ? or `receiver_id` = ?", m.table)
 	err := m.QueryRowNoCacheCtx(ctx, &total, query, userId, userId)
 
 	if err != nil {
@@ -81,13 +81,20 @@ func (m *customApplyFriendModel) FindPageByUserIdWithPagination(ctx context.Cont
 	}
 
 	// 分页查询
+	// pageNum/pageSize 由调用方校验，这里再兜一层，避免负 offset 被 MySQL 拒绝
+	if pageNum < 1 {
+		pageNum = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
 	var resp []*ApplyFriend
 	offset := (pageNum - 1) * pageSize
 	query = fmt.Sprintf("select %s from %s where `sender_id` = ? or `receiver_id` = ? order by `updated_time` desc limit ? offset ?", applyFriendRows, m.table)
 	err = m.QueryRowsNoCacheCtx(ctx, &resp, query, userId, userId, pageSize, offset)
 
 	if err != nil {
-		return nil, 0, nil
+		return nil, 0, err
 	}
 	return resp, total, nil
 }

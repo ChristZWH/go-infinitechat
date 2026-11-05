@@ -104,7 +104,7 @@ func (m *customFriendModel) DeleteByBothDirections(ctx context.Context, userId, 
 func (m customFriendModel) UpdateStatusByUserIdFriendId(ctx context.Context, userId, friendId, status int64) error {
 	friendUserIdFriendIdKey := fmt.Sprintf("%s%v:%v", cacheFriendUserIdFriendIdPrefix, userId, friendId)
 	_, err := m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
-		query := fmt.Sprintf("update %s set `status` = ?, `update_time` = now() where `user_id` = ? and `friend_id` = ?", m.table)
+		query := fmt.Sprintf("update %s set `status` = ?, `updated_time` = now() where `user_id` = ? and `friend_id` = ?", m.table)
 		return conn.ExecCtx(ctx, query, status, userId, friendId)
 	}, friendUserIdFriendIdKey)
 	return err

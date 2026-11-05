@@ -67,7 +67,8 @@ func (m *customUserBalanceModel) DeleteTx(ctx context.Context, userBalanceId int
 
 // 扣减余额，返回受影响行数（0 表示余额不足）
 func (m *customUserBalanceModel) DeductBalanceTx(ctx context.Context, userId, amount int64) (int64, error) {
-	query := fmt.Sprintf("UPDATE %s SET `balance` = `balance` - ?, `updateed_time` = NOW() WHERE `user_id` = ? AND `balance` >= ?", m.table)
+	// 注意：不要写 updated_time 列，表上已有 ON UPDATE CURRENT_TIMESTAMP 自动维护
+	query := fmt.Sprintf("UPDATE %s SET `balance` = `balance` - ? WHERE `user_id` = ? AND `balance` >= ?", m.table)
 	if session := txctx.GetSession(ctx); session != nil {
 		result, err := session.ExecCtx(ctx, query, amount, userId, amount)
 		if err != nil {

@@ -82,7 +82,7 @@ func (m *customUserSessionModel) DeleteTx(ctx context.Context, userId int64, ses
 //  1. 群成员列表是多行结果，不适合单行缓存模式
 //  2. 群成员可能频繁变动（加入/退出/踢人），缓存一致性难保证
 func (m *customUserSessionModel) FindMemberIdsBySessionId(ctx context.Context, sessionId int64) ([]int64, error) {
-	query := fmt.Sprintf("select `user_id` from %s where `user_id` = ? and `status` = 0", m.table)
+	query := fmt.Sprintf("select `user_id` from %s where `session_id` = ? and `status` = 0", m.table)
 	var members []struct {
 		UserId int64 `db:"user_id"`
 	}
