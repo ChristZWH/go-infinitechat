@@ -191,24 +191,31 @@ func (c *ExpirationConsumer) Consume(ctx context.Context, key, value string) err
 		return nil
 	}
 
-	// 2. 计算剩余余额
-	remainAmount := c.rpSvc.CalculateRemainAmount(ctx, redPacketId)
+	// 2. 计算剩余余额（Redis 出错必须上抛，吞成 0 会导致"状态已过期但一分未退"）
+	remainAmount, calcErr := c.rpSvc.CalculateRemainAmount(ctx, redPacketId)
+	if calcErr != nil {
+		return calcErr // 交给 kq 重试
+	}
 
 	// 开启事务
 	err = txctx.WithTransaction(ctx, c.rpSvc.SqlConn, func(ctx context.Context) error {
-		// 3. 退回给发送者
+		// 3. 先原子抢占「未领完 → 已过期」这一状态迁移，抢到的那一次才退款。
+		//    只 UPDATE 不先查状态：Kafka 重投或并发消费时 RowsAffected 为 0，钱只会退一次。
+		affected, updErr := c.rpSvc.RedPacketModel.MarkExpiredIfNotCompleted(ctx, redPacketId, constants.StatusExpired, constants.StatusNotCompleted)
+		common.ThrowIfWithMsg(updErr != nil, common.OperationError, "更新红包状态失败Consume-WithTransaction", updErr)
+		if affected == 0 {
+			logx.Infof("红包已被其它消费者处理，跳过退款。红包ID: %d", redPacketId)
+			return nil
+		}
+
+		// 4. 退回给发送者
 		if remainAmount > 0 {
-			err = c.rpSvc.AddBalance(ctx, rp.SenderId, remainAmount)
-			common.ThrowIfWithMsg(err != nil, common.SystemError, "AddBalance Failed 退钱失败", err)
+			if addErr := c.rpSvc.AddBalance(ctx, rp.SenderId, remainAmount); addErr != nil {
+				common.ThrowIfWithMsg(true, common.SystemError, "AddBalance Failed 退钱失败", addErr)
+			}
 			c.rpSvc.InsertBalanceLog(ctx, rp.SenderId, remainAmount, constants.BalanceLogTypeRefund, redPacketId)
 			logx.Infof("红包过期，退回金额: %d，用户ID: %d", remainAmount, rp.SenderId)
 		}
-
-		// 4. 更新红包状态为已过期
-		rp.Status = constants.StatusExpired
-		rp.UpdatedTime = time.Now()
-		err = c.rpSvc.RedPacketModel.UpdateTx(ctx, rp)
-		common.ThrowIfWithMsg(err != nil, common.OperationError, "更新红包状态失败Consume-WithTransaction", err)
 
 		return nil
 	})

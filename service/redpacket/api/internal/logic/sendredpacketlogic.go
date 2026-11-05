@@ -58,8 +58,9 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 		deductErr := l.svcCtx.RedPacketService.DeductBalance(ctx, req.SenderId, totalAmountFen)
 		common.ThrowIfWithMsg(deductErr != nil, common.OperationError, "余额不足或扣款失败", err)
 
-		// 2. 创建红包记录
-		_, insertErr := l.svcCtx.RedPacketModel.Insert(ctx, &red_packet.RedPacket{
+		// 2. 创建红包记录（必须用 InsertTx，go-zero 的 CachedConn.Insert 不读 ctx 里的 tx session，
+		//    否则第 3 步失败回滚时这条主表记录会留下来，变成永不退款的孤儿红包）
+		_, insertErr := l.svcCtx.RedPacketModel.InsertTx(ctx, &red_packet.RedPacket{
 			RedPacketId:          redPacketId,
 			SenderId:             senderId,
 			SessionId:            req.SessionId,

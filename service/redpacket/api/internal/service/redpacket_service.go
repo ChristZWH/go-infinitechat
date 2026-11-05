@@ -71,9 +71,12 @@ func YuanToFen(yuanStr string) (int64, error) {
 	return r.Num().Int64(), nil
 }
 
-// 分转元
+// 分转元：用整数运算格式化，避免 float64 在大额下丢精度
 func ConvertFenToYuan(fen int64) string {
-	return fmt.Sprintf("%.2f", float64(fen)/float64(constants.YuanToFenMultiplier))
+	if fen < 0 {
+		return fmt.Sprintf("-%d.%02d", -fen/100, -fen%100)
+	}
+	return fmt.Sprintf("%d.%02d", fen/100, fen%100)
 }
 
 // 执行抢红包 Lua 脚本
@@ -199,14 +202,18 @@ func (s *RedPacketService) CleanRedisCache(redPacketId int64) {
 }
 
 // 计算红包剩余金额（Lua 脚本）
-func (s *RedPacketService) CalculateRemainAmount(ctx context.Context, redPacketId int64) int64 {
+func (s *RedPacketService) CalculateRemainAmount(ctx context.Context, redPacketId int64) (int64, error) {
 	poolKey := constants.GetPoolKey(redPacketId)
 	calcScript := redis.NewScript(script.CalculateRemainAmountLua)
 	result, err := s.rds.ScriptRunCtx(ctx, calcScript, []string{poolKey})
-	if err != nil || result == nil {
-		return 0
+	if err != nil {
+		logx.Errorf("计算红包剩余金额失败, redPacketId=%d: %v", redPacketId, err)
+		return 0, err
 	}
-	return ToInt64(result)
+	if result == nil {
+		return 0, nil
+	}
+	return ToInt64(result), nil
 }
 
 // 扣减用户余额

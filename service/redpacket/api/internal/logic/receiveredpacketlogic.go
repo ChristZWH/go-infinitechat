@@ -46,12 +46,14 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 		resp.Message = "您已经领取过该红包了"
 		// "此分支 Status 仅为占位，客户端以 Message 为准"—— 毕竟重复领取是低频路径，为它多查一次库不值
 		resp.Status = constants.StatusNotCompleted
+		return resp, nil
 	}
 	// 已过期 -2
 	if resultCode == constants.AlreadyExpired {
 		resp.Amount = ""
 		resp.Message = "红包已过期"
 		resp.Status = constants.StatusExpired
+		return resp, nil
 	}
 
 	// 无 poolKey ；redis 数据为空，查库获取真实数据
