@@ -47,7 +47,8 @@ func main() {
 
 	// 3. 启动 Kafka Consumers
 	if len(c.Kafka.Brokers) > 0 {
-		// go
+		go startMessageConsumer(c, svcCtx)
+		go startNotificationConsumer(c, svcCtx)
 	}
 
 	// 打印启动信息

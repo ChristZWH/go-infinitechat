@@ -60,6 +60,12 @@ func (c *MessageConsumer) Consume(ctx context.Context, key, val string) error {
 //  3. 推送给发送者（让发送者的其他设备同步 / 确认消息已送达）
 //  4. 推送给接收者
 func (c *MessageConsumer) handleSignalMessage(msgReq *dto.MessageRequest) {
+	// 单聊必须带 receiverId；历史代码在 nil 判断之前就解引用，畸形消息会打崩 kq 的消费 goroutine
+	if msgReq.ReceiverId == nil {
+		common.Errorf("[MessageConsumer][single] 单聊消息缺少 receiverId，丢弃: sessionId=%d, messageId=%d", msgReq.SessionId, msgReq.MessageId)
+		return
+	}
+
 	msgResp := createMessageResponse(msgReq)
 	respJSON, err := json.Marshal(msgResp)
 	if err != nil {
@@ -67,12 +73,14 @@ func (c *MessageConsumer) handleSignalMessage(msgReq *dto.MessageRequest) {
 		return
 	}
 
+	receiverIdValue := *msgReq.ReceiverId
+
 	// 推送给发送者
 	senderId := strconv.FormatInt(msgReq.SenderId, 10)
 	if ok := ws.SendMessageToUser(c.svcCtx.ChannelManager, senderId, respJSON); ok {
-		common.Infof("[MessageConsumer][single] 单聊消息推送给 '发送者' 成功: fromUserId=%d, toUserId=%d, sessionId=%d, messageId=%d", msgReq.SenderId, *msgReq.ReceiverId, msgReq.SessionId, msgReq.MessageId)
+		common.Infof("[MessageConsumer][single] 单聊消息推送给 '发送者' 成功: fromUserId=%d, toUserId=%d, sessionId=%d, messageId=%d", msgReq.SenderId, receiverIdValue, msgReq.SessionId, msgReq.MessageId)
 	} else {
-		common.Warnf("[MessageConsumer][single] 单聊消息推送给 '发送者' 失败: fromUserId=%d, toUserId=%d, sessionId=%d, messageId=%d", msgReq.SenderId, *msgReq.ReceiverId, msgReq.SessionId, msgReq.MessageId)
+		common.Warnf("[MessageConsumer][single] 单聊消息推送给 '发送者' 失败: fromUserId=%d, toUserId=%d, sessionId=%d, messageId=%d", msgReq.SenderId, receiverIdValue, msgReq.SessionId, msgReq.MessageId)
 	}
 
 	// 推送给接收者

@@ -62,7 +62,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	if len(c.Kafka.Brokers) > 0 {
 		storePusher = kq.NewPusher(c.Kafka.Brokers, constants.KafkaMessageTopicStore)
 		messagePusher = kq.NewPusher(c.Kafka.Brokers, constants.KafkaMessageTopicPush)
-		notificationPusher = kq.NewPusher(c.Kafka.Brokers, constants.KafkaSystemNotificationTopic)
+		notificationPusher = kq.NewPusher(c.Kafka.Brokers, constants.KafkaStoreNotificationTopic)
 		common.Info("Kafka Pushers 初始化完成")
 	} else {
 		common.Warn("Kafka Brokers 未配置，消息将无法持久化和推送")
