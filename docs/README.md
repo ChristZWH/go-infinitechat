@@ -6,6 +6,7 @@
 | [services.md](services.md) | 要改某个服务 | 每个服务的职责、关键文件、对外接口、依赖 |
 | [getting-started.md](getting-started.md) | 第一次跑起来 | 中间件准备、建库、启动顺序、联调验证、常见报错 |
 | [error-handling.md](error-handling.md) | 写业务代码 | 错误码分段、Throw / WrapError 约定、HTTP 状态映射、异步场景注意点 |
+| [auth.md](auth.md) | 改接口/排查 403 | 身份来源、网关路径校验、中间件解析、会话维度授权待办 |
 | [redpacket.md](redpacket.md) | 看红包 | Redis 结构、Lua 抢包、状态机、过期退款、金额算法 |
 | [testing.md](testing.md) | 加测试 | 测试分层、已覆盖内容、如何跑真实库回归 |
 | [roadmap.md](roadmap.md) | 接手/排期 | 已知限制与待办，按优先级排列 |

@@ -47,11 +47,14 @@
 ## 3. HTTP 请求链路
 
 1. 客户端 → gateway，先过 CORS（`OPTIONS` 直接 204 返回）
-2. Auth 中间件：URL 精确匹配白名单（`/api/user/login`、`/api/user/users`、`/api/user/sendCaptcha`）则放行；否则查 Redis `access_token:<token>` 得到 userId，写入 `X-User-Id` 后转发
-3. Proxy：按 `Prefixes` 前缀匹配路由；`etcd://` 上游从 Resolver 轮询取实例
-4. 下游服务：`RecoverMiddleWare` 兜住 `common.Throw` 抛出的业务错误 → `SetErrorHandlerCtx` 统一成 `{code, message}`
+2. Auth 中间件：URL 精确匹配白名单（`/api/user/login`、`/api/user/users`、`/api/user/sendCaptcha`）则放行；否则查 Redis `access_token:<token>` 得到 userId
+3. **身份一致性校验**：路径里 `/users/{id}` 的 id 必须等于 token 主人，否则 403；然后删除客户端自带的 `X-User-Id`，写入可信值
+4. Proxy：按 `Prefixes` 前缀匹配路由；`etcd://` 上游从 Resolver 轮询取实例
+5. 下游服务：`RecoverMiddleWare` 兜住业务错误；`IdentityMiddleware` 把 `X-User-Id` 解析进 context；`SetErrorHandlerCtx` 统一成 `{code, message}`
 
-> ⚠️ 目前下游接口的 userId 仍取自 URL path / 请求体，`X-User-Id` 未被消费。这属于待修的越权风险，见 [roadmap.md](roadmap.md)。
+细节见 [auth.md](auth.md)。
+
+> ⚠️ 会话维度的授权（`/api/group/{sessionId}/members`、`/api/offline/...`）仍由各服务自行判断，尚未统一；见 [roadmap.md](roadmap.md)。
 
 ## 4. 消息链路（IM 主流程）
 

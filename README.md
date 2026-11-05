@@ -145,6 +145,7 @@ go test ./service/user/model/ -v
 | [docs/services.md](docs/services.md) | 每个服务的职责、关键文件、依赖 |
 | [docs/getting-started.md](docs/getting-started.md) | 环境准备、启动顺序、联调验证、排错 |
 | [docs/error-handling.md](docs/error-handling.md) | 错误码体系与 Throw/WrapError 约定 |
+| [docs/auth.md](docs/auth.md) | 身份与鉴权：网关注入、路径校验、ctx 身份 |
 | [docs/redpacket.md](docs/redpacket.md) | 红包设计：Redis 结构、Lua、状态机、退款 |
 | [docs/testing.md](docs/testing.md) | 测试分层与如何运行 |
 | [docs/roadmap.md](docs/roadmap.md) | 已知限制与待办（按优先级） |
@@ -154,8 +155,9 @@ go test ./service/user/model/ -v
 ## 当前状态
 
 - ✅ 用户/好友/群组/消息/通知/红包主链路已打通
-- ✅ 单元测试覆盖：红包算法、分页、错误码、好友缓存 key、连接管理、JWT、网关路由与白名单
-- ⚠️ 鉴权仍是"可信任内网"假设（详见 [docs/roadmap.md](docs/roadmap.md) 第 1 节），上线前必须补
+- ✅ 单元测试覆盖：红包算法、分页、错误码、好友缓存 key、连接管理、JWT、网关路由与白名单、身份中间件
+- ✅ 越权收口：网关校验 `/users/{id}` 与登录身份一致，服务侧把身份解析进 context（详见 [docs/auth.md](docs/auth.md)）
+- ⚠️ 会话维度授权（群成员、离线消息、红包）仍需服务端自行校验，见 [docs/roadmap.md](docs/roadmap.md) 第 1 节
 - ⚠️ 配置里有本地开发用的明文口令，勿直接用于公网
 
 ## 说明
