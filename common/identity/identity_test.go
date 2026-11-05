@@ -72,3 +72,26 @@ func TestUserIdOverwrite(t *testing.T) {
 		t.Fatalf("后写入的身份应覆盖之前的值, got=%d", got)
 	}
 }
+
+func TestOverrideIfPresent(t *testing.T) {
+	t.Run("有身份时覆盖", func(t *testing.T) {
+		ctx := WithUserId(context.Background(), 42)
+		id := int64(7)
+		OverrideIfPresent(ctx, &id)
+		if id != 42 {
+			t.Fatalf("id = %d, 期望被覆盖为 42", id)
+		}
+	})
+
+	t.Run("无身份时保留原值", func(t *testing.T) {
+		id := int64(7)
+		OverrideIfPresent(context.Background(), &id)
+		if id != 7 {
+			t.Fatalf("id = %d, 期望保持 7", id)
+		}
+	})
+
+	t.Run("nil 指针安全", func(t *testing.T) {
+		OverrideIfPresent(WithUserId(context.Background(), 1), nil) // 不应 panic
+	})
+}

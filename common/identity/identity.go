@@ -42,3 +42,18 @@ func UserId(ctx context.Context) (int64, bool) {
 func MustUserId(ctx context.Context) (int64, bool) {
 	return UserId(ctx)
 }
+
+// OverrideIfPresent 如果 ctx 里有已认证身份，就覆盖 *id。
+// 用于 logic 层一行完成"以登录态为准，忽略请求里带的 userId"：
+//
+//	identity.OverrideIfPresent(l.ctx, &req.UserId)
+//
+// 没有身份时（例如直连服务调试、白名单接口）保持原值不变。
+func OverrideIfPresent(ctx context.Context, id *int64) {
+	if id == nil {
+		return
+	}
+	if v, ok := UserId(ctx); ok {
+		*id = v
+	}
+}
