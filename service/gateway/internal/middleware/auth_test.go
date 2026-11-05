@@ -99,3 +99,55 @@ func TestHandleAllowsWhiteListedPath(t *testing.T) {
 		t.Fatal("白名单路径应直接放行")
 	}
 }
+
+// 身份一致性：/users/{id} 里的 id 必须是 token 的主人，否则 403。
+// 这是 30+ 个"userId 来自路径"的越权接口的统一收口点。
+func TestIsPathUserIdMismatch(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		tokenUserId string
+		want        bool
+	}{
+		{"本人查资料", "/api/user/users/123", "123", false},
+		{"本人查余额", "/api/user/users/123/balance", "123", false},
+		{"本人查余额明细", "/api/user/users/123/balance/records", "123", false},
+		{"查他人余额被拒", "/api/user/users/123/balance", "456", true},
+		{"好友列表本人", "/api/contact/users/7/friend", "7", false},
+		{"好友操作看第一个 users 段", "/api/contact/users/7/friend/8", "7", false},
+		{"拿对方 id 当操作者被拒", "/api/contact/users/8/friend/7", "7", true},
+		{"建群/邀请等群接口", "/api/group/users/9", "9", false},
+		{"会话维度接口不做此校验", "/api/group/123/members", "456", false},
+		{"注册路径没有 id", "/api/user/users", "1", false},
+		{"非数字 id 交给下游校验", "/api/user/users/abc", "1", false},
+		{"token 身份不可解析时拒绝", "/api/user/users/123", "", true},
+		{"路径无 users 段", "/api/offline/history", "1", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isPathUserIdMismatch(tt.path, tt.tokenUserId); got != tt.want {
+				t.Fatalf("isPathUserIdMismatch(%q, %q) = %v, 期望 %v", tt.path, tt.tokenUserId, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResponseForbidden(t *testing.T) {
+	m := newAuthMiddleware()
+	rec := httptest.NewRecorder()
+
+	m.responseForbidden(rec)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("状态码 = %d, 期望 403", rec.Code)
+	}
+
+	var body unauthorizedResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("响应不是合法 JSON: %v", err)
+	}
+	if body.Code != 40300 || body.Message == "" {
+		t.Errorf("响应体不正确: %+v", body)
+	}
+}
