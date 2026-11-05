@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"go-infinitechat/common/common"
+	commonconstants "go-infinitechat/common/model/constants"
 	dto2 "go-infinitechat/common/model/dto"
 	"go-infinitechat/common/model/txctx"
 	"go-infinitechat/common/utils"
@@ -232,7 +233,7 @@ func (fs *FriendService) GetFriendDetails(ctx context.Context, userId string, fr
 
 	// 4.填充好友状态
 	friendRelation, err := fs.FriendModel.FindOneByUserIdFriendId(ctx, uid, fid)
-	if err != nil && friendRelation != nil {
+	if err == nil && friendRelation != nil {
 		vo.Status = int32(friendRelation.Status)
 	} else {
 		vo.Status = -1
@@ -301,7 +302,8 @@ func (fs *FriendService) GetFriends(ctx context.Context, userId string, pageNum,
 			nickName := nullToEmpty(u.Nickname)
 			phone := nullToEmpty(u.Phone)
 			uidStr := strconv.FormatInt(uid, 10)
-			if !strings.Contains(nickName, key) && strings.Contains(phone, key) && strings.Contains(uidStr, key) {
+			// 昵称、手机号、用户ID 都不包含关键字时才跳过
+			if !strings.Contains(nickName, key) && !strings.Contains(phone, key) && !strings.Contains(uidStr, key) {
 				continue
 			}
 		}
@@ -359,8 +361,9 @@ func (fs *FriendService) evictFriendCache(userId, friendId int64) {
 	if fs.rds == nil {
 		return
 	}
-	key1 := constants.FriendStatusKeyPrefix + strconv.FormatInt(userId, 10) + ":" + strconv.FormatInt(friendId, 10)
-	key2 := constants.FriendStatusKeyPrefix + strconv.FormatInt(friendId, 10) + ":" + strconv.FormatInt(userId, 10)
+	// 与 user-rpc 的读取端共用同一个 key 构造函数，否则这里删的 key 不是那边写的 key
+	key1 := commonconstants.FriendStatusCacheKey(userId, friendId)
+	key2 := commonconstants.FriendStatusCacheKey(friendId, userId)
 	_, _ = fs.rds.Del(key1)
 	_, _ = fs.rds.Del(key2)
 	common.Infof("已清除好友关系缓存: %d <-> %d", userId, friendId)

@@ -37,7 +37,7 @@ func (bs *BalanceService) InitializaBalance(ctx context.Context, userId int64, i
 	// 检查是否已存在余额记录
 	userBalance, err := bs.UserBalanceModel.FindOne(ctx, userId)
 	// 出现非正常下的错误
-	common.ThrowIf(err != nil && errors.Is(err, sqlc.ErrNotFound), common.SystemError, err)
+	common.ThrowIf(err != nil && !errors.Is(err, sqlc.ErrNotFound), common.SystemError, err)
 	common.ThrowIfWithMsg(userBalance != nil, common.OperationError, "用户余额记录已存在")
 
 	newUserBalance := &user_balance.UserBalance{
@@ -55,9 +55,9 @@ func (bs *BalanceService) InitializaBalance(ctx context.Context, userId int64, i
 
 // 查询用户余额
 func (bs *BalanceService) GetUserBalance(userId int64) dto.UserBalanceResponse {
-	common.ThrowIfWithMsg(userId <= 0, common.UserAlreadyExists, "用户ID不能为空")
+	common.ThrowIfWithMsg(userId <= 0, common.ParamsError, "用户ID不能为空")
 	userBalance, err := bs.UserBalanceModel.FindOne(context.Background(), userId)
-	common.ThrowIf(err != nil && errors.Is(err, sqlc.ErrNotFound), common.SystemError, err)
+	common.ThrowIf(err != nil && !errors.Is(err, sqlc.ErrNotFound), common.SystemError, err)
 	common.ThrowIfWithMsg(userBalance == nil, common.NotFoundError, "用户余额记录不存在")
 	//构造响应对象（将分转换为元）
 	return dto.UserBalanceResponse{

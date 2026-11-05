@@ -66,20 +66,22 @@ func (s *ApplyFriendService) SendFriendRequest(ctx context.Context, senderId, re
 	common.ThrowIfWithMsg(err == nil && existFriend != nil, common.OperationError, "已经是好友关系")
 
 	// 3. 检查是否已有待处理的申请，有则更新
+	// 注意：这里判空的是 existApply（不是 existFriend），否则重复提交会一路走到 INSERT，
+	// 撞 UNIQUE(sender_id, receiver_id) 直接 500。
 	existApply, err := s.ApplyFriendModel.FindOneBySenderIdReceiverId(ctx, senderId, receiverId)
-	if err == nil && existFriend != nil {
-		if existApply.Status == constants.ApplicationUnread.Code || existApply.Status == constants.ApplicationRead.Code {
-			// 更新已有申请
-			existApply.Message = message
-			existApply.Status = constants.ApplicationUnread.Code
-			existApply.UpdatedTime = time.Now()
-			err = s.ApplyFriendModel.Update(ctx, existApply)
-			common.ThrowIfWithMsg(err != nil, common.SystemError, "更新好友申请失败")
+	common.ThrowIfWithMsg(err != nil && !errors.Is(err, apply_friend.ErrNotFound), common.SystemError, "查询好友申请失败", err)
+	if existApply != nil && (existApply.Status == constants.ApplicationUnread.Code || existApply.Status == constants.ApplicationRead.Code) {
+		// 更新已有申请
+		existApply.Message = message
+		existApply.Status = constants.ApplicationUnread.Code
+		existApply.UpdatedTime = time.Now()
+		err = s.ApplyFriendModel.Update(ctx, existApply)
+		common.ThrowIfWithMsg(err != nil, common.SystemError, "更新好友申请失败")
 
-			// 发送通知
-			s.sendApplyNotification(senderId, receiverId, sender, message)
-			s.sendExpirationEvent(senderId)
-		}
+		// 发送通知（续期事件要用申请ID，不是发送者ID）
+		s.sendApplyNotification(senderId, receiverId, sender, message)
+		s.sendExpirationEvent(existApply.ApplyFriendId)
+		return existApply.ApplyFriendId
 	}
 
 	// 4. 创建新申请

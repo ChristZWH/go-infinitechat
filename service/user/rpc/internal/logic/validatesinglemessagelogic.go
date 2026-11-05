@@ -2,18 +2,22 @@ package logic
 
 import (
 	"context"
+	"errors"
 	"strconv"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/model/constants"
 	"go-infinitechat/service/user/rpc/internal/svc"
 	"go-infinitechat/service/user/rpc/user"
 
 	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 const (
-	friendStatusCachePrefix = "msg:validate:friend:status:"
-	friendCacheTTL          = 120 // 2分钟
+	// 好友状态缓存 TTL（秒）。拉黑/解除拉黑后最多 2 分钟生效，
+	// 不设 TTL 会导致一次脏写入永久生效。
+	friendCacheTTLSeconds = 120
 )
 
 type ValidateSingleMessageLogic struct {
@@ -96,7 +100,8 @@ func (l *ValidateSingleMessageLogic) ValidateSingleMessage(in *user.ValidateSing
 //
 // 返回值：好友表的 status 字段（0=好友, 1=拉黑, 2=删除），-1 表示非好友
 func (l *ValidateSingleMessageLogic) getFriendStatusWithCache(userId, friendId int64) int64 {
-	key := friendStatusCachePrefix + strconv.FormatInt(userId, 10) + strconv.FormatInt(friendId, 10)
+	// key 规则与 user-api 的清理逻辑共用同一份实现，避免"写的 key 和删的 key 不是一个"
+	key := constants.FriendStatusCacheKey(userId, friendId)
 
 	// 尝试从 Redis 缓存读取
 	if l.svcCtx.Redis != nil {
@@ -110,14 +115,21 @@ func (l *ValidateSingleMessageLogic) getFriendStatusWithCache(userId, friendId i
 	var status int64
 	// 缓存未命中，查数据库
 	rel, err := l.svcCtx.FriendModel.FindOneByUserIdFriendId(l.ctx, userId, friendId)
-	if err != nil || rel == nil {
+	if err != nil {
+		if !errors.Is(err, sqlx.ErrNotFound) {
+			// 数据库故障：不落缓存（否则一次抖动就会让这对用户被永久判成非好友），本次按非好友保守处理
+			common.Errorf("查询好友关系失败, userId=%d, friendId=%d: %v", userId, friendId, err)
+		}
+		status = -1
+	} else if rel == nil {
 		status = -1
 	} else {
 		status = rel.Status
 	}
 
 	if l.svcCtx.Redis != nil {
-		_ = l.svcCtx.Redis.Set(key, strconv.FormatInt(status, 10))
+		// 必须带 TTL：go-zero 的 Set 不传过期时间就是永久缓存
+		_ = l.svcCtx.Redis.Setex(key, strconv.FormatInt(status, 10), friendCacheTTLSeconds)
 	}
 
 	return status

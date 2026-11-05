@@ -32,7 +32,8 @@ func (l *BatchGetUserInfosLogic) BatchGetUserInfos(in *user.BatchGetUserInfosReq
 	users := make([]*user.BatchUserInfoItem, 0, len(in.UserIds))
 	for _, item := range in.UserIds {
 		u, err := l.svcCtx.UserModel.FindOne(l.ctx, item)
-		if err == nil || u == nil {
+		// 查询失败或用户不存在才跳过；查询成功(err == nil)必须收进结果
+		if err != nil || u == nil {
 			continue
 		}
 		users = append(users, &user.BatchUserInfoItem{
