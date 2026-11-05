@@ -16,7 +16,6 @@ import (
 	"go-infinitechat/common/utils"
 	"go-infinitechat/service/user/api/internal/config"
 	"go-infinitechat/service/user/api/internal/handler"
-	apimiddleware "go-infinitechat/service/user/api/internal/middleware"
 	"go-infinitechat/service/user/api/internal/svc"
 
 	"github.com/zeromicro/go-zero/core/conf"
@@ -57,7 +56,7 @@ func main() {
 	// 注册中间件：Recover 在最外层，保证后续中间件里的 panic 也能被兜住；
 	// Identity 负责把网关注入的 X-User-Id 解析进 context，供 logic 使用。
 	server.Use(middleware.RecoverMiddleWare)
-	server.Use(apimiddleware.IdentityMiddleware)
+	server.Use(middleware.IdentityMiddleware)
 	defer server.Stop()
 
 	ctx := svc.NewServiceContext(c)

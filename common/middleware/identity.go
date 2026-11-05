@@ -17,6 +17,7 @@ import (
 //
 // 为什么还要在服务侧解析一遍？因为下游可能被直连（本机调试、内网调用），
 // 网关校验不能假设永远生效；同时 logic 层需要一个统一的读取入口。
+// user.api / offline.api / redpacket.api 都在 server.Use 里注册了它。
 func IdentityMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if raw := strings.TrimSpace(r.Header.Get(identity.HeaderUserId)); raw != "" {
