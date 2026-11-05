@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 
@@ -31,6 +32,11 @@ func NewUserInfoLogic(ctx context.Context, svcCtx *svc.ServiceContext) *UserInfo
 
 // 获取用户基本信息
 func (l *UserInfoLogic) UserInfo(req *types.UserIdPathRequest) (resp *types.UserInfoResponse, err error) {
+	// 身份以网关鉴权结果为准：路径里的 userId 只在没有身份时（直连调试）才采信
+	if userId, ok := identity.UserId(l.ctx); ok {
+		req.UserId = userId
+	}
+
 	userInfo, err := l.svcCtx.UserModel.FindOne(l.ctx, req.UserId)
 	// 区分"用户不存在"和系统错误：DB 故障不能返回 404
 	common.ThrowIf(err != nil && !errors.Is(err, sqlx.ErrNotFound), common.SystemError, err)

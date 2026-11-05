@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	commonDto "go-infinitechat/common/model/dto"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
@@ -35,6 +36,11 @@ func NewGetBalanceDetailLogic(ctx context.Context, svcCtx *svc.ServiceContext) *
 }
 
 func (l *GetBalanceDetailLogic) GetBalanceDetail(req *types.BalanceDetailRequest) (*commonDto.PageResponse[dto.BalanceLogDTO], error) {
+	// 余额明细只允许查自己的：身份以登录态为准，覆盖请求里带的 userId
+	if authUserId, ok := identity.UserId(l.ctx); ok {
+		req.UserId = strconv.FormatInt(authUserId, 10)
+	}
+
 	// 参数校验
 	userId, err := strconv.ParseInt(req.UserId, 10, 64)
 	common.ThrowIfWithMsg(err != nil, common.ParamsError, "用户ID格式错误")

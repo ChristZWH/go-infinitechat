@@ -6,6 +6,7 @@ package user
 import (
 	"context"
 
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/user/api/internal/svc"
 	"go-infinitechat/service/user/api/internal/types"
 	"go-infinitechat/service/user/api/internal/types/dto"
@@ -28,5 +29,9 @@ func NewGetUserBalanceLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Ge
 }
 
 func (l *GetUserBalanceLogic) GetUserBalance(req *types.UserIdPathRequest) (dto.UserBalanceResponse, error) {
+	// 余额只允许查自己的：身份取自登录态
+	if userId, ok := identity.UserId(l.ctx); ok {
+		req.UserId = userId
+	}
 	return l.svcCtx.UserBalanceService.GetUserBalance(req.UserId), nil
 }
