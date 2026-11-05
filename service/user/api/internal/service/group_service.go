@@ -22,7 +22,7 @@ import (
 const (
 	RoleGroupOwner     = 0
 	RoleGroupAdmin     = 1
-	RoleGroupMenber    = 2
+	RoleGroupMember    = 2
 	DefaultGroupAvatar = "https://video.shanyangcode.com/image/default/A9C9C83CCCE043EC8253DB5D7545DCB4-6-2.png"
 )
 
@@ -53,7 +53,7 @@ func NewGroupService(
 	}
 }
 
-func (gs *GroupService) GetGroupMenberCount(ctx context.Context, sessionId int64) int {
+func (gs *GroupService) GetGroupMemberCount(ctx context.Context, sessionId int64) int {
 	common.ThrowIfWithMsg(sessionId <= 0, common.ParamsError, "会话ID不能为空")
 	var count int
 	query := "SELECT count(*) FROM `user_session` WHERE `session_id` = ? AND `status` = 0"
@@ -79,6 +79,10 @@ func (gs *GroupService) GetUserGroups(ctx context.Context, userId int64, pageNum
 	}
 
 	// 2. 分页查询（一条 SQL 拿全：session 信息 + 群主 + 成员数，避免 N+1）
+	// pageNum 非法时兜底为 1，否则 offset 可能为负导致 SQL 报错
+	if pageNum <= 0 {
+		pageNum = 1
+	}
 	offset := (pageNum - 1) * pageSize
 	var rows []dto.GroupRow
 	query := `SELECT us.session_id, us.role, us.created_time, s.name, s.avatar,
@@ -199,7 +203,7 @@ func (gs *GroupService) CreateGroup(ctx context.Context, req *types.CreateGroupR
 			_, err := gs.UserSessionModel.InsertTx(ctx, &user_session.UserSession{
 				UserId:      mid,
 				SessionId:   sessionId,
-				Role:        RoleGroupMenber,
+				Role:        RoleGroupMember,
 				Status:      constants.StatusSuccess,
 				CreatedTime: time.Now(),
 				UpdatedTime: time.Now(),
@@ -272,7 +276,7 @@ func (gs *GroupService) InviteGroup(ctx context.Context, req *types.InviteGroupR
 		_, err := gs.UserSessionModel.InsertTx(ctx, &user_session.UserSession{
 			UserId:      mid,
 			SessionId:   sessionId,
-			Role:        RoleGroupMenber,
+			Role:        RoleGroupMember,
 			Status:      constants.StatusSuccess,
 			CreatedTime: time.Now(),
 			UpdatedTime: time.Now(),
@@ -348,7 +352,7 @@ func (gs *GroupService) KickGroupMembers(ctx context.Context, req *types.KickGro
 			continue
 		}
 		// 权限校验：群主可踢所有人，管理员只能踢普通成员
-		if opRole == RoleGroupOwner || (opRole == RoleGroupAdmin && ms.Role == RoleGroupMenber) {
+		if opRole == RoleGroupOwner || (opRole == RoleGroupAdmin && ms.Role == RoleGroupMember) {
 			err = gs.UserSessionModel.DeleteTx(ctx, mid, sessionId)
 			if err != nil {
 				continue
@@ -391,7 +395,7 @@ func (gs *GroupService) ExitGroup(ctx context.Context, req *types.GroupExitReque
 	return true
 }
 
-func (gs *GroupService) GetGroupMenbers(ctx context.Context, sessionId int64, pageNum, pageSize int32) *dto2.PageResponse[dto.GroupMemberDTO] {
+func (gs *GroupService) GetGroupMembers(ctx context.Context, sessionId int64, pageNum, pageSize int32) *dto2.PageResponse[dto.GroupMemberDTO] {
 	common.ThrowIfWithMsg(sessionId <= 0, common.ParamsError, "会话ID不能为空")
 
 	// 1. 查询总数
@@ -405,6 +409,9 @@ func (gs *GroupService) GetGroupMenbers(ctx context.Context, sessionId int64, pa
 	}
 
 	// 2.分页查询
+	if pageNum <= 0 {
+		pageNum = 1
+	}
 	offset := (pageNum - 1) * pageSize
 	var userSession []user_session.UserSession
 	query := "select `user_id`,`session_id`,`role`,`status`,`created_time`,`updated_time` from `user_session` where `session_id` = ? and `status` = 0 order by `role` asc, `created_time` asc limit ?, ?"
