@@ -5,15 +5,18 @@ package logic
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/redpacket/api/internal/service"
 	"go-infinitechat/service/redpacket/api/internal/svc"
 	"go-infinitechat/service/redpacket/api/internal/types"
 	"go-infinitechat/service/redpacket/api/internal/types/constants"
 
 	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 type ReceiveRedPacketLogic struct {
@@ -31,7 +34,15 @@ func NewReceiveRedPacketLogic(ctx context.Context, svcCtx *svc.ServiceContext) *
 }
 
 func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequest) (resp *types.ReceiveResultVO, err error) {
+	// 领取人只能是"我"
+	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	logx.Infof("领取红包请求，用户ID: %d, 红包ID: %d", req.UserId, req.RedPacketId)
+
+	// 不能领自己的红包（查库拿到发送者，DB 故障与"红包不存在"分开处理）
+	rp, err := l.svcCtx.RedPacketModel.FindOne(l.ctx, req.RedPacketId)
+	common.ThrowIf(err != nil && !errors.Is(err, sqlx.ErrNotFound), common.SystemError, err)
+	common.ThrowIfWithMsg(rp == nil, common.NotFoundError, "红包不存在")
+	common.ThrowIfWithMsg(rp.SenderId == req.UserId, common.OperationError, "不能领取自己的红包")
 
 	// 执行抢红包 Lua 脚本
 	resultCode, completed, err := l.svcCtx.RedPacketService.ExecuteReceiveLua(l.ctx, req.RedPacketId, req.UserId)

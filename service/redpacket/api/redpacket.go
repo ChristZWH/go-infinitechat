@@ -57,8 +57,9 @@ func main() {
 	})
 
 	server := rest.MustNewServer(c.RestConf)
-	// 注册中间件 全局异常处理
+	// 注册中间件 全局异常处理 + 身份解析（领取/发送红包要校验"这是我的操作"）
 	server.Use(middleware.RecoverMiddleWare)
+	server.Use(middleware.IdentityMiddleware)
 	defer server.Stop()
 
 	svcCtx := svc.NewServiceContext(c)

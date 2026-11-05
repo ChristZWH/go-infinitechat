@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	commonconsts "go-infinitechat/common/model/constants"
 	"go-infinitechat/common/model/dto"
 	"go-infinitechat/common/model/txctx"
@@ -41,6 +42,8 @@ func NewSendRedPacketLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Sen
 
 // 发送红包
 func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (resp *types.RedPacketSendVO, err error) {
+	// 发送者只能是"我"
+	identity.OverrideIfPresent(l.ctx, &req.SenderId)
 	l.validateSendRequest(req)
 
 	// 业务数据准备
