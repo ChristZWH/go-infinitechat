@@ -22,7 +22,13 @@ func RecoverMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 				}
 				if bizErr.Code >= 50000 {
 					// 系统级错误记日志；业务错误是 Throw 抛出的正常流程，不记避免刷屏
-					common.Errorf("系统错误 %d: %v", bizErr.Code, err)
+					// 注意：ErrorCode.Error() 只返回 Message，真正的底层原因在 Cause 里，
+					// 不显式打出来就永远看不到（例如 SQL 的 1054 Unknown column）
+					if bizErr.Cause != nil {
+						common.Errorf("系统错误 %d: %s, 原因: %v", bizErr.Code, bizErr.Message, bizErr.Cause)
+					} else {
+						common.Errorf("系统错误 %d: %s", bizErr.Code, bizErr.Message)
+					}
 				}
 				// 全部交给 SetErrorHandlerCtx 统一分类、统一格式
 				// 注意：不能走 OkJsonCtx，否则 SetOkHandler 会把错误体再包一层 Success
