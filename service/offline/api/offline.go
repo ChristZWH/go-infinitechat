@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
+	commoncanal "go-infinitechat/common/canal"
 	"go-infinitechat/common/common"
 	etcdreg "go-infinitechat/common/etcd"
 	"go-infinitechat/common/middleware"
@@ -92,9 +93,21 @@ func main() {
 
 	// 启动 Canal 客户端：监听 binlog 写 redis 离线数据
 	if ctx.SqlConn != nil {
-		canalRunner := canal.NewCanalRunner(c.Canal, ctx.Redis, ctx.SqlConn, ctx.UserRpc)
-		// CanalRunner.Start 内部是死循环，要用 go 起协程
-		go canalRunner.Start(context.Background())
+		runner := commoncanal.NewRunner(commoncanal.Config{
+			Address:     c.Canal.Host,
+			Port:        c.Canal.Port,
+			Destination: c.Canal.Destination,
+			Username:    c.Canal.Username,
+			Password:    c.Canal.Password,
+			Filter:      c.Canal.Filter,
+		})
+		// 注册 infiniteChat.message 表的处理器：消息落库 → 同步 Redis 四件套
+		// 注意：库名是 IM.sql 里的 `infiniteChat`（小写 i），不是原代码硬编码的 InfiniteChat——
+		// schema 名与 binlog Header 完全一致才能匹配上（原 monitorTables 写错导致一直不生效）。
+		runner.RegisterHandler("infiniteChat", "message",
+			canal.NewMessageHandler(ctx.Redis, ctx.SqlConn, ctx.UserRpc))
+		// Runner.Start 内部是死循环，要用 go 起协程
+		go runner.Start(context.Background())
 	}
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
