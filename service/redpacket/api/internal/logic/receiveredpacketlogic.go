@@ -65,11 +65,11 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 		return resp, nil
 	}
 
-	// 无 poolKey -3 ；redis 数据为空，查库获取真实数据
+	// 无 poolKey -3 ：Redis 金额池为空（被并发领完或缓存过期），用 DB 真实状态兜底。
+	// rp 已在方法开头查过并校验存在，这里直接复用，避免二次查库；
+	// 也修掉原先「第 71 行刚拆出 ErrNotFound、第 72 行又对所有 err 抛 MysqlError」的自相矛盾
+	// （否则"红包不存在"会被误标成系统错误 500）。
 	if resultCode == constants.EmptyPool {
-		rp, err := l.svcCtx.RedPacketModel.FindOne(l.ctx, req.RedPacketId)
-		common.ThrowIf(err != nil && !errors.Is(err, sqlx.ErrNotFound), common.SystemError, err)
-		common.ThrowIfWithMsg(err != nil, common.MysqlError, "红包查询操作失败", err)
 		resp.Status = int(rp.Status)
 		switch resp.Status {
 		case constants.StatusCompleted:

@@ -37,8 +37,9 @@ redis.call('HSET', recordKey, userId, amount)
 -- 领取事件写入 Stream（发件箱）：与 LPOP/HSET 同一脚本 = 原子。
 -- 这样即使进程在 LPOP 之后、落库之前崩溃，事件也已在 Redis 持久化，
 -- 由 stream worker 消费入账（at-least-once），不存在「抢到但钱没到账」的窗口。
--- '*' = ID 自动生成
-redis.call('XADD', streamKey, '~', '100000', '*',
+-- MAXLEN ~ 10000 近似裁剪：防止 worker 长时间不可用时 Stream 无界膨胀吃内存；
+-- 入账是幂等的，但上限别设太小，否则会裁掉还没入账的旧消息。'*' 表示 ID 自动生成。
+redis.call('XADD', streamKey, 'MAXLEN', '~', 10000, '*',
 		'userId', userId,
 		'redPacketId', redPacketId,
 		'amount', amount,

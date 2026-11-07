@@ -47,25 +47,38 @@ func runReceiveStreamWorker(svcCtx *svc.ServiceContext) {
 	// 死循环，所以需要 go 开启异步 goroutine
 	// 死循环——读新消息 → 逐条入账 → 成功 XACK 签收、失败留在 pending 等重投 → 回到读
 	for {
-		// ">" 表示只读新消息；pending 消息由 XAck 失败后通过 XAUTOCLAIM 兜底（本实现简化，靠重投幂等）; 一次最多读 100 条；false: 读完不自动签收 -> 签收手动 XACK 控制
-		streams, err := rds.XReadGroup(node, group, consumerId, 100, 5*time.Second, false, stream, ">")
-		if err != nil {
-			if err != red.Nil { // red.Nil = 5 秒内无新消息，属正常
-				logx.Errorf("XReadGroup 失败: %v", err)
-			}
-			continue
+		// 1. 读新消息（阻塞最多 5 秒；无新消息返回 red.Nil，属正常）
+		// ">" 表示只读新消息；pending 失败消息的兜底见下方; 一次最多读 100 条；false: 读完不自动签收 -> 签收手动 XACK 控制
+		newStreams, err := rds.XReadGroup(node, group, consumerId, 100, 5*time.Second, false, stream, ">")
+		if err == nil {
+			processStreams(svcCtx, rds, stream, group, newStreams)
+		} else if err != red.Nil {
+			logx.Errorf("XReadGroup(新消息) 失败: %v", err)
 		}
 
-		for _, s := range streams {
-			for _, msg := range s.Messages {
-				if err := handleReceiveEvent(svcCtx, msg.Values); err != nil {
-					// 入账失败不 XACK，等待重投
-					logx.Errorf("领取事件入账失败, id=%s: %v", msg.ID, err)
-					continue
-				}
-				if _, err := rds.XAck(stream, group, msg.ID); err != nil {
-					logx.Errorf("XACK 失败, id=%s: %v", msg.ID, err)
-				}
+		// 2. 重读自己 PEL 里的未确认消息（id "0"，block=0 不阻塞）：
+		//    SettleReceive 失败、未 XACK 的消息会留在该消费者的 PEL 里，
+		//    这一读把它们重新拉回来处理，实现"重试直到成功"。
+		//    go-zero 没有 XAUTOCLAIM/XCLAIM，单消费者用 "0" 重读自己的 PEL 是标准做法。
+		pendingStreams, err := rds.XReadGroup(node, group, consumerId, 100, 0, false, stream, "0")
+		if err == nil {
+			processStreams(svcCtx, rds, stream, group, pendingStreams)
+		} else if err != red.Nil {
+			logx.Errorf("XReadGroup(pending) 失败: %v", err)
+		}
+	}
+}
+
+// processStreams 逐条处理 Stream 消息：入账成功 XACK，失败留在 pending 等下一轮重读。
+func processStreams(svcCtx *svc.ServiceContext, rds *redis.Redis, stream, group string, streams []red.XStream) {
+	for _, s := range streams {
+		for _, msg := range s.Messages {
+			if err := handleReceiveEvent(svcCtx, msg.Values); err != nil {
+				logx.Errorf("领取事件入账失败, id=%s: %v", msg.ID, err)
+				continue
+			}
+			if _, err := rds.XAck(stream, group, msg.ID); err != nil {
+				logx.Errorf("XACK 失败, id=%s: %v", msg.ID, err)
 			}
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go-infinitechat/common/model/constants"
+	dto "go-infinitechat/common/model/dto"
 	"go-infinitechat/service/user/rpc/user"
 	"go-infinitechat/service/user/rpc/userrpc"
 
@@ -38,22 +39,15 @@ func (m *MessageHandler) Handle(schema, table string, columns map[string]string)
 }
 
 type MessageRedisResponse struct {
-	SessionId   int64        `json:"sessionId"`
-	SenderId    int64        `json:"senderId"`
-	MessageId   int64        `json:"messageId"`
-	Type        int          `json:"type"`
-	SessionType int          `json:"sessionType"`
-	CreatedTime string       `json:"createdTime"`
-	Body        *MessageBody `json:"body"`
-	Name        string       `json:"name"`
-	Avatar      string       `json:"avatar"`
-}
-
-type MessageBody struct {
-	Content              string `json:"content,omitempty"`
-	ReplyId              *int64 `json:"replyId,omitempty"`
-	RedPacketId          string `json:"redPacketId,omitempty"`
-	RedPacketWrapperText string `json:"redPacketWrapperText,omitempty"`
+	SessionId   int64           `json:"sessionId"`
+	SenderId    int64           `json:"senderId"`
+	MessageId   int64           `json:"messageId"`
+	Type        int             `json:"type"`
+	SessionType int             `json:"sessionType"`
+	CreatedTime string          `json:"createdTime"`
+	Body        *dto.MessageBody `json:"body"`
+	Name        string          `json:"name"`
+	Avatar      string          `json:"avatar"`
 }
 
 func buildMessageFromMap(colMap map[string]string) *MessageRedisResponse {
@@ -65,12 +59,13 @@ func buildMessageFromMap(colMap map[string]string) *MessageRedisResponse {
 	resp.SessionType, _ = strconv.Atoi(colMap["session_type"])
 	resp.CreatedTime = colMap["created_time"]
 
-	if resp.Type == 3 {
-		body := &MessageBody{}
+	// 红包消息：type = MessageTypeRedPacket，content 存的是序列化后的 MessageBody JSON
+	if resp.Type == dto.MessageTypeRedPacket {
+		body := &dto.MessageBody{}
 		_ = json.Unmarshal([]byte(colMap["content"]), body)
 		resp.Body = body
 	} else {
-		body := &MessageBody{Content: colMap["content"]}
+		body := &dto.MessageBody{Content: colMap["content"]}
 		if v := colMap["reply_id"]; v != "" {
 			replyId, _ := strconv.ParseInt(v, 10, 64)
 			body.ReplyId = &replyId
@@ -139,7 +134,7 @@ func (m *MessageHandler) storeMessageToRedis(msg *MessageRedisResponse) error {
 		objectKey := strconv.FormatInt(msg.SessionId, 10)
 
 		lastMsgContent := ""
-		if msg.Type == 3 && msg.Body != nil {
+		if msg.Type == dto.MessageTypeRedPacket && msg.Body != nil {
 			lastMsgContent = "[红包] " + msg.Body.RedPacketWrapperText
 		} else if msg.Body != nil {
 			lastMsgContent = msg.Body.Content
