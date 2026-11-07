@@ -6,7 +6,6 @@ package logic
 import (
 	"context"
 	"errors"
-	"time"
 
 	"go-infinitechat/common/common"
 	"go-infinitechat/common/identity"
@@ -34,7 +33,7 @@ func NewReceiveRedPacketLogic(ctx context.Context, svcCtx *svc.ServiceContext) *
 }
 
 func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequest) (resp *types.ReceiveResultVO, err error) {
-	// 领取人只能是"我"
+	// 领取人只能是"我"，以网关登录为准
 	identity.OverrideIfPresent(l.ctx, &req.UserId)
 	logx.Infof("领取红包请求，用户ID: %d, 红包ID: %d", req.UserId, req.RedPacketId)
 
@@ -45,8 +44,7 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 	common.ThrowIfWithMsg(rp.SenderId == req.UserId, common.OperationError, "不能领取自己的红包")
 
 	// 执行抢红包 Lua 脚本
-	resultCode, completed, err := l.svcCtx.RedPacketService.ExecuteReceiveLua(l.ctx, req.RedPacketId, req.UserId)
-	common.ThrowIfWithMsg(err != nil, common.ParamsError, "红包参数错误", err)
+	resultCode, completed := l.svcCtx.RedPacketService.ExecuteReceiveLua(l.ctx, req.RedPacketId, req.UserId)
 
 	resp = &types.ReceiveResultVO{}
 
@@ -67,9 +65,10 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 		return resp, nil
 	}
 
-	// 无 poolKey ；redis 数据为空，查库获取真实数据
+	// 无 poolKey -3 ；redis 数据为空，查库获取真实数据
 	if resultCode == constants.EmptyPool {
 		rp, err := l.svcCtx.RedPacketModel.FindOne(l.ctx, req.RedPacketId)
+		common.ThrowIf(err != nil && !errors.Is(err, sqlx.ErrNotFound), common.SystemError, err)
 		common.ThrowIfWithMsg(err != nil, common.MysqlError, "红包查询操作失败", err)
 		resp.Status = int(rp.Status)
 		switch resp.Status {
@@ -78,7 +77,7 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 		case constants.StatusExpired:
 			resp.Message = "红包已过期"
 		default:
-			// Redis 是实时真相，MySQL 是异步追账，两者之间永远有个小时间窗，default 分支就是给这个时间窗兜底的
+			// Redis 是实时真相，MySQL 是异步追账，两者之间永远有个小时间窗，default 分支就是给这个时间窗兜底的，追求最终一致性；中间态
 			resp.Message = "暂时无法领取"
 		}
 		return resp, nil
@@ -94,16 +93,9 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 	resp.Amount = service.ConvertFenToYuan(amount)
 	resp.Message = "恭喜您，领取成功"
 
-	// 发送领取记录到 Kafka
-	err = l.svcCtx.KafkaPusherManager.Push(l.ctx, constants.TopicRedpacketReceive, map[string]interface{}{
-		"userId":         req.UserId,
-		"redPacketId":    req.RedPacketId,
-		"receivedAmount": amount,
-		"receivedTime":   time.Now().UnixMilli(),
-	})
-	// 业务没有发送成功没有重试，也不进行重试，失败结果：
-	// LPOP 确实抢到金额了，但是只存在于 Redis 中，消费端 事务三步骤并不会执行落库操作
-	common.ThrowIfWithMsg(err != nil, common.SystemError, "Kafka 消息推送失败 TopicRedpacketReceive", err)
+	// 领取入账不再走 Kafka：抢包 Lua 已把领取事件原子写入 Redis Stream（发件箱），
+	// 由 receive stream worker 消费落库。LPOP + HSET + XADD 同一脚本 = 原子，
+	// 不存在「抢到但事件丢失、钱永远不到账」的窗口。
 
 	if constants.IsCompleted(completed) {
 		resp.Status = constants.StatusCompleted

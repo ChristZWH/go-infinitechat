@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"go-infinitechat/common/common"
 	"go-infinitechat/common/model/txctx"
-	"go-infinitechat/common/utils"
 	"go-infinitechat/service/redpacket/api/internal/config"
 	"go-infinitechat/service/redpacket/api/internal/service"
 	"go-infinitechat/service/redpacket/api/internal/svc"
 	"go-infinitechat/service/redpacket/api/internal/types/constants"
-	"go-infinitechat/service/redpacket/model/red_packet_receive"
 	"strconv"
 	"time"
 
@@ -18,34 +16,19 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
-type ReceiveConsumer struct {
-	rpSvc *service.RedPacketService
-}
-
+// StartConsumer 启动红包 Kafka 消费者。
+// 注意：领取入账已改走 Redis Stream 发件箱（见 receive_stream_worker.go），
+// 这里只保留「领完」「过期」两个事件消费者。
 func StartConsumer(svcCtx *svc.ServiceContext, c config.Config) []func() {
 	if len(c.Kafka.Brokers) == 0 {
 		logx.Error("Kafka Brokers 未配置，消费者不启动")
 		return nil
 	}
-	rp_svc := svcCtx.RedPacketService
+	rpSvc := svcCtx.RedPacketService
 	var stopFunc []func()
 
-	// 1. 红包领取事件消费者
-	receiveConsumer := &ReceiveConsumer{rpSvc: rp_svc}
-	receiveQueue := kq.MustNewQueue(kq.KqConf{
-		ServiceConf: c.ServiceConf,
-		Brokers:     c.Kafka.Brokers,
-		Group:       "redpacket-receive-handler-group",
-		Topic:       constants.TopicRedpacketReceive,
-		Offset:      "last",
-		Consumers:   3,
-		Processors:  3,
-	}, kq.WithHandle(receiveConsumer.Consume))
-	go receiveQueue.Start()
-	stopFunc = append(stopFunc, receiveQueue.Stop)
-
-	// 2. 红包领完事件消费者
-	completedConsumer := &CompletedConsumer{rpSvc: rp_svc}
+	// 1. 红包领完事件消费者
+	completedConsumer := &CompletedConsumer{rpSvc: rpSvc}
 	completedQueue := kq.MustNewQueue(kq.KqConf{
 		ServiceConf: c.ServiceConf,
 		Brokers:     c.Kafka.Brokers,
@@ -58,8 +41,8 @@ func StartConsumer(svcCtx *svc.ServiceContext, c config.Config) []func() {
 	go completedQueue.Start()
 	stopFunc = append(stopFunc, completedQueue.Stop)
 
-	// 3. 红包过期事件消费者
-	expirationConsumer := &ExpirationConsumer{rpSvc: rp_svc}
+	// 2. 红包过期事件消费者
+	expirationConsumer := &ExpirationConsumer{rpSvc: rpSvc}
 	expirationQueue := kq.MustNewQueue(kq.KqConf{
 		ServiceConf: c.ServiceConf,
 		Brokers:     c.Kafka.Brokers,
@@ -73,57 +56,6 @@ func StartConsumer(svcCtx *svc.ServiceContext, c config.Config) []func() {
 	stopFunc = append(stopFunc, expirationQueue.Stop)
 
 	return stopFunc
-}
-
-func (c *ReceiveConsumer) Consume(ctx context.Context, key, value string) error {
-	logx.Infof("收到红包领取事件：%s", value)
-	var event map[string]interface{}
-	if err := json.Unmarshal([]byte(value), &event); err != nil {
-		logx.Errorf("解析红包领取事件失败: %v", err)
-		return nil
-	}
-
-	userId := jsonToInt64(event["userId"])
-	redPacketId := jsonToInt64(event["redPacketId"])
-	receivedAmount := jsonToInt64(event["receivedAmount"])
-	receivedTime := jsonToInt64(event["receivedTime"])
-
-	// 幂等性检查
-	existing, err := c.rpSvc.RedPacketReceiveModel.FindOneByRedPacketIdReceiverId(ctx, redPacketId, userId)
-	if err == nil && existing != nil {
-		logx.Infof("红包领取记录已存在，跳过。红包ID: %d, 用户ID: %d", redPacketId, userId)
-		return nil
-	}
-
-	now := time.Now()
-	// 开启事务
-	err = txctx.WithTransaction(ctx, c.rpSvc.SqlConn, func(ctx context.Context) error {
-		// 1. 插入领取记录
-		_, err = c.rpSvc.RedPacketReceiveModel.InsertTx(ctx, &red_packet_receive.RedPacketReceive{
-			RedPacketReceiveId: utils.NextInt(),
-			RedPacketId:        redPacketId,
-			ReceiverId:         userId,
-			Amount:             receivedAmount,
-			ReceivedAt:         time.UnixMilli(receivedTime),
-			CreatedTime:        now,
-			UpdatedTime:        now,
-		})
-		common.ThrowIfWithMsg(err != nil, common.MysqlError, "插入领取记录失败", err)
-
-		// 2. 增加余额
-		err = c.rpSvc.AddBalance(ctx, userId, receivedAmount)
-		common.ThrowIfWithMsg(err != nil, common.OperationError, "增加余额失败", err)
-
-		// 3. 记录余额变动日志
-		c.rpSvc.InsertBalanceLog(ctx, userId, receivedAmount, constants.BalanceLogTypeReceive, redPacketId)
-		return nil
-	})
-
-	logx.Infof("红包领取记录处理完成。红包ID: %d, 用户ID: %d, 金额: %d", redPacketId, userId, receivedAmount)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 type CompletedConsumer struct {

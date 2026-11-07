@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"go-infinitechat/common/common"
 	"go-infinitechat/common/kafka"
+	"go-infinitechat/common/model/txctx"
 	"go-infinitechat/common/utils"
 	"go-infinitechat/service/redpacket/api/internal/script"
 	"go-infinitechat/service/redpacket/api/internal/types/constants"
@@ -81,24 +82,31 @@ func ConvertFenToYuan(fen int64) string {
 
 // 执行抢红包 Lua 脚本
 // 返回（resultCode, completed标识）
-func (s *RedPacketService) ExecuteReceiveLua(ctx context.Context, redPacketId, userId int64) (resultCode int64, completed int64, err error) {
+func (s *RedPacketService) ExecuteReceiveLua(ctx context.Context, redPacketId, userId int64) (resultCode int64, completed int64) {
 	poolKey := constants.GetPoolKey(redPacketId)      // List  [350, 120, 880, ...]   ← 每个元素一个随机金额（单位：分）
 	recordKey := constants.GetRecordsKey(redPacketId) // redpacket:records:123 Hash  {888: 350, 999: 120}   ← field=userId, value=抢到的金额
+	streamKey := constants.ReceiveStreamKey           // 领取事件发件箱（Redis Stream）
 	script := redis.NewScript(script.ReceiveRedPacketLua)
 
-	result, err := s.rds.ScriptRunCtx(ctx, script, []string{poolKey, recordKey}, strconv.FormatInt(userId, 10), strconv.FormatInt(s.getRedPacketExpireMs(ctx, redPacketId), 10))
+	result, err := s.rds.ScriptRunCtx(ctx, script,
+		[]string{poolKey, recordKey, streamKey},
+		strconv.FormatInt(userId, 10),
+		strconv.FormatInt(s.getRedPacketExpireMs(ctx, redPacketId), 10),
+		strconv.FormatInt(redPacketId, 10),
+		strconv.FormatInt(time.Now().UnixMilli(), 10),
+	)
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "Lua脚本执行失败", err)
 	resultList, ok := result.([]interface{})
 	if !ok || len(resultList) == 0 {
-		common.ThrowWithMsg(common.SystemError, "Lua脚本返回值异常")
+		common.ThrowWithMsg(common.SystemError, "Lua抢红包脚本返回值异常")
 	}
 
-	// 返回值没有异常，说明抢到红包；第一个参数表示强到的金额，第二个参数表示是否还有剩余
+	// 返回值没有异常，说明抢到红包；第一个参数表示抢到的金额，第二个参数表示是否还有剩余
 	resultCode = ToInt64(resultList[0])
 	if len(resultList) > 1 {
 		completed = ToInt64(resultList[1])
 	}
-	return resultCode, completed, nil
+	return resultCode, completed
 }
 
 // getRedPacketExpireMs 获取红包过期时间戳（毫秒）：
@@ -190,6 +198,37 @@ func (s *RedPacketService) InsertBalanceLog(ctx context.Context, userId, amount 
 		UpdatedTime:  now,
 	})
 	common.ThrowIfWithMsg(err != nil, common.MysqlError, "记录余额变动日志失败", err)
+}
+
+// SettleReceive 领取入账：幂等检查 + 事务（插领取记录 + 加余额 + 写余额流水）。
+// 供领取事件发件箱（Redis Stream worker）复用。at-least-once：重投时靠幂等检查跳过。
+func (s *RedPacketService) SettleReceive(ctx context.Context, userId, redPacketId, receivedAmount, receivedTime int64) error {
+	// 幂等：同一红包同一用户已有记录则跳过（Stream/Kafka at-least-once 都会重投）
+	existing, err := s.RedPacketReceiveModel.FindOneByRedPacketIdReceiverId(ctx, redPacketId, userId)
+	if err == nil && existing != nil {
+		return nil
+	}
+
+	now := time.Now()
+	return txctx.WithTransaction(ctx, s.SqlConn, func(ctx context.Context) error {
+		_, err := s.RedPacketReceiveModel.InsertTx(ctx, &red_packet_receive.RedPacketReceive{
+			RedPacketReceiveId: utils.NextInt(),
+			RedPacketId:        redPacketId,
+			ReceiverId:         userId,
+			Amount:             receivedAmount,
+			ReceivedAt:         time.UnixMilli(receivedTime),
+			CreatedTime:        now,
+			UpdatedTime:        now,
+		})
+		common.ThrowIfWithMsg(err != nil, common.MysqlError, "插入领取记录失败", err)
+
+		if err := s.AddBalance(ctx, userId, receivedAmount); err != nil {
+			common.ThrowIfWithMsg(true, common.OperationError, "增加余额失败", err)
+		}
+
+		s.InsertBalanceLog(ctx, userId, receivedAmount, constants.BalanceLogTypeReceive, redPacketId)
+		return nil
+	})
 }
 
 // 清理红包 Redis 缓存  —— 过期清理(脚本2 按 score 扫出 → ZREM → Go 退款)
