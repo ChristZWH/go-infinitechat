@@ -42,7 +42,7 @@ func NewSendRedPacketLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Sen
 
 // 发送红包
 func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (resp *types.RedPacketSendVO, err error) {
-	// 发送者只能是"我"
+	// 发送者只能是"我"，以网关登录为准
 	identity.OverrideIfPresent(l.ctx, &req.SenderId)
 	l.validateSendRequest(req)
 
@@ -54,6 +54,15 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 
 	redPacketId := utils.NextInt()
 	now := time.Now()
+
+	// 先红包金额预分配 ——> 再开事务（分配是纯 CPU 计算，先做完再动钱）
+	var amounts []int64
+	if redPacketType == constants.TypeNormal {
+		amounts, err = algorithm.AllocateNormalRedPacket(totalAmountFen, int(totalCount))
+	} else {
+		amounts, err = algorithm.AllocateRandomRedPacket(totalAmountFen, int(totalCount))
+	}
+	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包金额分配失败")
 
 	// 开启事务：扣减余额 + 创建红包记录 + 记录余额日志
 	err = txctx.WithTransaction(l.ctx, l.svcCtx.SqlxConn, func(ctx context.Context) error {
@@ -85,26 +94,17 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包发送失败", err)
 	// 事务结束
 
-	// 红包金额预分配
-	var amounts []int64
-	if redPacketType == constants.TypeNormal {
-		amounts, err = algorithm.AllocateNormalRedPacket(totalAmountFen, int(totalCount))
-	} else {
-		amounts, err = algorithm.AllocateRandomRedPacket(totalAmountFen, int(totalCount))
-	}
-	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包金额分配失败")
-
 	// 初始化 Redis 红包金额池 + 设置红包过期时间 ZSET
 	l.svcCtx.RedPacketService.InitRedisPool(redPacketId, amounts)
 
 	// 发红包消息到 Kafka (store + push)
 	messageId := l.sendRedPacketMessage(req, redPacketId)
 
-	// 发送红包创建事件到 Kafka（用于过期处理注册）
-	_ = l.svcCtx.KafkaPusherManager.Push(l.ctx, constants.TopicRedpacketCreation, map[string]interface{}{
-		"redPackageId": redPacketId,
-		"createdTime":  time.Now().UnixMilli(),
-	})
+	// 发送红包创建事件到 Kafka（用于过期处理注册），逻辑待修正
+	// _ = l.svcCtx.KafkaPusherManager.Push(l.ctx, constants.TopicRedpacketCreation, map[string]interface{}{
+	// 	"redPackageId": redPacketId,
+	// 	"createdTime":  time.Now().UnixMilli(),
+	// })
 
 	logx.Infof("红包发送成功，红包ID: %d, 消息ID: %d, 发送者: %d, 金额: %d, 数量: %d", redPacketId, messageId, senderId, totalAmountFen, totalCount)
 
@@ -150,16 +150,23 @@ func (l *SendRedPacketLogic) sendRedPacketMessage(req *types.RedPacketSendReques
 	common.ThrowIf(req.SessionType == constants.SessionTypeGroup && msgReq.ReceiverId != nil, common.GroupTypeError)
 
 	// 消息持久化（store-topic，无 key，offline 服务消费落库）
-	_ = l.svcCtx.KafkaPusherManager.Push(l.ctx, commonconsts.KafkaMessageTopicStore, msgReq)
+	// 失败只记日志不抛错：此时事务已提交、余额已扣除，抛错会让客户端重试造成重复扣款；
+	// 可靠投递待事务性发件箱（Outbox）改造后解决
+	if err := l.svcCtx.KafkaPusherManager.Push(l.ctx, commonconsts.KafkaMessageTopicStore, msgReq); err != nil {
+		common.Errorf("[RedPacket] 红包消息落库事件发送失败, messageId=%d, redPacketId=%d, err=%s", messageId, redPacketId, err.Error())
+	}
 
 	// 消息推送（message-topic，用 sessionId 作为 key 保证同会话有序，realtime 服务消费推送）
-	_ = l.svcCtx.KafkaPusherManager.KPush(l.ctx, commonconsts.KafkaMessageTopicPush, strconv.FormatInt(req.SessionId, 10), msgReq)
+	if err := l.svcCtx.KafkaPusherManager.KPush(l.ctx, commonconsts.KafkaMessageTopicPush, strconv.FormatInt(req.SessionId, 10), msgReq); err != nil {
+		common.Errorf("[RedPacket] 红包消息推送事件发送失败, messageId=%d, redPacketId=%d, err=%s", messageId, redPacketId, err.Error())
+	}
 
 	logx.Infof("红包消息已入队，红包ID: %d, 消息ID: %d", redPacketId, messageId)
 	return messageId
 }
 
 func (l *SendRedPacketLogic) validateSendRequest(req *types.RedPacketSendRequest) {
+	common.ThrowIfWithMsg(req.Body.TotalCount <= 0, common.ParamsError, "红包数量必须大于0")
 	totalAmountFen, err := service.YuanToFen(req.Body.TotalAmount)
 	common.ThrowIfWithMsg(err != nil, common.ParamsError, "红包金额格式错误")
 	common.ThrowIfWithMsg(totalAmountFen <= 0, common.ParamsError, "红包金额必须大于0")

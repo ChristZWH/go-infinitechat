@@ -161,6 +161,9 @@ func (pr *ProxyRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Infof("[Gateway] 路由匹配: path=%s -> %s", r.URL.Path, route.Id)
+	// 内部自动触发注册的回调函数 Director
+	// entry.Proxy = &httputil.ReverseProxy{...
+	// Director: func(req *http.Request) {...}}
 	route.Proxy.ServeHTTP(w, r)
 }
 

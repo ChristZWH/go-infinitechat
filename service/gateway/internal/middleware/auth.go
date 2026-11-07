@@ -133,6 +133,7 @@ var userPathSegment = regexp.MustCompile(`/users/(\d+)(?:/|$)`)
 // 没有 /users/{id} 的路径（例如 /api/group/:sessionId/members）返回 false，
 // 这类接口的归属校验属于会话成员维度，需要各服务自己判断。
 func isPathUserIdMismatch(path, tokenUserId string) bool {
+	// FindStringSubmatch：索引 0 是整个匹配到的文本，索引 1 开始才是捕获组
 	matches := userPathSegment.FindStringSubmatch(path)
 	if len(matches) < 2 {
 		return false

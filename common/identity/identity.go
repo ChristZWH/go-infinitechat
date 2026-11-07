@@ -43,7 +43,7 @@ func MustUserId(ctx context.Context) (int64, bool) {
 	return UserId(ctx)
 }
 
-// OverrideIfPresent 如果 ctx 里有已认证身份，就覆盖 *id。
+// OverrideIfPresent 如果 ctx 里有已认证身份，就覆盖 *id，防止越权
 // 用于 logic 层一行完成"以登录态为准，忽略请求里带的 userId"：
 //
 //	identity.OverrideIfPresent(l.ctx, &req.UserId)
