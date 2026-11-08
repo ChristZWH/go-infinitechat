@@ -2,19 +2,11 @@
 
 ## 1. 三层结构
 
-```
-客户端
-  │  Authorization: Bearer <access_token>
-  ▼
-gateway  ── ① 查 Redis access_token:<token> 得到 userId
-           ② 校验路径里 /users/{id} 的 id == userId（不一致直接 403）
-           ③ 删除客户端自带的 X-User-Id，写入可信值
-  │  X-User-Id: <userId>
-  ▼
-服务入口  ── ④ IdentityMiddleware 解析 X-User-Id → context
-  │
-  ▼
-logic    ── ⑤ identity.UserId(ctx) 取身份，覆盖请求参数里的 userId
+```mermaid
+flowchart TD
+    Client["客户端"] -->|"Authorization: Bearer"| Gateway["gateway<br/>① 查 Redis access_token 得到 userId<br/>② 校验 /users/{id} == userId<br/>③ 删除客户端自带的 X-User-Id，写入可信值"]
+    Gateway -->|"X-User-Id"| Service["服务入口<br/>④ IdentityMiddleware 解析进 context"]
+    Service -->|"context"| Logic["logic<br/>⑤ identity.UserId(ctx) 取身份，覆盖请求参数"]
 ```
 
 关键点：**身份只有一个来源**——网关注入的 `X-User-Id`。URL 路径与请求体里的 userId 只是"定位参数"，不再作为身份凭据。
@@ -77,15 +69,15 @@ if userId, ok := identity.UserId(l.ctx); ok {
 
 | 位置 | 状态 |
 |---|---|
-| 网关路径校验（覆盖所有 `/users/{id}` 接口） | ✅ 已上线 |
-| 网关注入 + 删除伪造头 | ✅ 已上线 |
-| `common/identity`（ctx 读写） | ✅ 已有测试 |
-| `IdentityMiddleware`（下沉到 `common/middleware`，user.api / offline / redpacket 三服务共用） | ✅ 已注册 |
-| 全部 user.api logic 以 ctx 身份为准（好友、申请、群、登出、改头像等 20+ 处） | ✅ 已迁移 |
-| 群成员列表 / 群人数：`EnsureGroupMember` 会话归属校验 | ✅ 已上线 |
-| offline 历史消息 / 离线消息：`ensureSessionMember` 会话归属校验 | ✅ 已上线 |
-| redpacket 领取 / 发送：以 ctx 身份为准 + 禁止领自己的红包 | ✅ 已上线 |
-| user.rpc 的内部调用鉴权（当前信任调用方传入的 senderId） | ⏳ 未做 |
+| 网关路径校验（覆盖所有 `/users/{id}` 接口） | 已上线 |
+| 网关注入 + 删除伪造头 | 已上线 |
+| `common/identity`（ctx 读写） | 已有测试 |
+| `IdentityMiddleware`（下沉到 `common/middleware`，user.api / offline / redpacket 三服务共用） | 已注册 |
+| 全部 user.api logic 以 ctx 身份为准（好友、申请、群、登出、改头像等 20+ 处） | 已迁移 |
+| 群成员列表 / 群人数：`EnsureGroupMember` 会话归属校验 | 已上线 |
+| offline 历史消息 / 离线消息：`ensureSessionMember` 会话归属校验 | 已上线 |
+| redpacket 领取 / 发送：以 ctx 身份为准 + 禁止领自己的红包 | 已上线 |
+| user.rpc 的内部调用鉴权（当前信任调用方传入的 senderId） | 未完成 |
 
 ## 5. 测试
 

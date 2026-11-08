@@ -34,28 +34,26 @@ Go 版本：`go 1.26.2`（见 `go.mod`）。
 
 ## 架构
 
-```
-                    ┌─────────────────────────────┐
-   Web / App ──────▶│  gateway :10010             │
-      HTTP          │  CORS → Auth(Redis token)   │
-                    │  → 反向代理 / 负载均衡       │
-                    └──────┬───────────┬──────────┘
-                           │           │
-        ┌──────────────────┼───────────┼──────────────────┐
-        ▼                  ▼           ▼                  ▼
-  user.api :8104     offline.api   redpacket.api     ai (外部 :8886)
-        │              :8101          :8888
-        ▼                │              │
-  user.rpc :8105         │              │
-        │                ▼              ▼
-        └──────────▶ MySQL / Redis ◀────┘
-                           ▲
-                           │ binlog（Canal）
-                    ┌──────┴───────┐
-   WebSocket ──────▶│  realtime    │ REST :8102 / WS :9101 (/ws/chat)
-      :9101         └──────┬───────┘
-                           ▼
-                   Kafka: message-topic / system-notification-topic
+```mermaid
+flowchart LR
+    Web["Web / App"] -->|HTTP| Gateway["gateway :10010<br/>CORS → Auth → 反向代理"]
+
+    Gateway --> UserAPI["user.api :8104"]
+    Gateway --> OfflineAPI["offline.api :8101"]
+    Gateway --> RedPacketAPI["redpacket.api :8888"]
+    Gateway --> AI["ai（外部）:8886"]
+
+    UserAPI --> UserRPC["user.rpc :8105"]
+
+    UserAPI --> DB[("MySQL / Redis")]
+    OfflineAPI --> DB
+    RedPacketAPI --> DB
+    UserRPC --> DB
+
+    Web -.->|"WebSocket :9101"| Realtime["realtime<br/>REST :8102"]
+    Realtime -->|"生产 / 消费"| Kafka[("Kafka")]
+    OfflineAPI -->|"消费 store-topic"| Kafka
+    RedPacketAPI -->|"发件箱投递"| Kafka
 ```
 
 消息主链路（单聊）：
@@ -154,11 +152,16 @@ go test ./service/user/model/ -v
 
 ## 当前状态
 
-- ✅ 用户/好友/群组/消息/通知/红包主链路已打通
-- ✅ 单元测试覆盖：红包算法、分页、错误码、好友缓存 key、连接管理、JWT、网关路由与白名单、身份中间件
-- ✅ 越权收口：网关校验 `/users/{id}` 与登录身份一致；服务侧把身份解析进 context，user.api / offline / redpacket 全部以登录态为准，群成员与消息读取增加会话归属校验（详见 [docs/auth.md](docs/auth.md)）
-- ⚠️ user.rpc 的内部调用仍信任传入的 senderId（见 [docs/roadmap.md](docs/roadmap.md) 第 1 节）
-- ⚠️ 配置里有本地开发用的明文口令，勿直接用于公网
+已完成：
+
+- 用户 / 好友 / 群组 / 消息 / 通知 / 红包主链路已打通
+- 单元测试覆盖：红包算法、分页、错误码、好友缓存 key、连接管理、JWT、网关路由与白名单、身份中间件
+- 越权收口：网关校验 `/users/{id}` 与登录身份一致，服务侧把身份解析进 context（详见 [docs/auth.md](docs/auth.md)）
+
+注意事项：
+
+- user.rpc 的内部调用仍信任传入的 senderId（见 [docs/roadmap.md](docs/roadmap.md)）
+- 配置文件里含本地开发用的明文口令，不要直接用于公网
 
 ## 说明
 

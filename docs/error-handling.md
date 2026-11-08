@@ -29,18 +29,16 @@ common.ThrowIfWithMsg(x, common.UserAlreadyExists, "用户ID不能为空")  // �
 
 ## 3. panic 的旅程
 
-```
-logic: common.Throw(NoAuthError)
-          │ panic(ErrorCode{Code, Message, Cause})
-          ▼
-middleware.RecoverMiddleWare  defer recover()
-          ├─ 不是 ErrorCode → 记堆栈 + 500 兜底
-          └─ 是 ErrorCode  → code >= 50000 时记日志（含 Cause）
-          ▼
-httpx.ErrorCtx → SetErrorHandlerCtx
-          ├─ errors.As 失败 → 500，记"未包装错误"
-          ├─ code >= 50000 → 500 + 脱敏
-          └─ code <  50000 → 200 + 业务码
+```mermaid
+flowchart TD
+    Throw["logic: common.Throw(NoAuthError)"] -->|"panic(ErrorCode{Code, Message, Cause})"| Recover["middleware.RecoverMiddleWare"]
+    Recover -->|"不是 ErrorCode"| Sys["记堆栈 → ErrorCtx(SystemError)"]
+    Recover -->|"是 ErrorCode"| Biz["ErrorCtx(ErrorCode)"]
+    Sys --> Handler["SetErrorHandlerCtx"]
+    Biz --> Handler
+    Handler -->|"errors.As 失败"| E500["500 · 未包装错误"]
+    Handler -->|"code ≥ 50000"| E500
+    Handler -->|"code < 50000"| E200["200 + 业务码"]
 ```
 
 要点：

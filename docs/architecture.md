@@ -2,33 +2,32 @@
 
 ## 1. 服务拓扑
 
-```
-                         ┌──────────────────────────────────────┐
-   Web / App ──HTTP─────▶│ gateway :10010                       │
-                         │  CORS → Auth(Redis 查 token) → Proxy │
-                         │  etcd 服务发现 + 轮询                 │
-                         └───┬──────────────┬───────────────┬───┘
-                             │              │               │
-                   /api/user,/api/contact  │        /api/chat/redPacket
-                   /api/group              │ /api/offline
-                             ▼              ▼               ▼
-                     user.api :8104   offline.api :8101  redpacket.api :8888
-                             │              │               │
-                             ▼              │               │
-                     user.rpc :8105         │               │
-                             │              │               │
-                             └──────────────┴───────────────┘
-                                            │
-                                   MySQL 8 + Redis
-                                            ▲
-                                            │ binlog 订阅（Canal）
-                             ┌──────────────┴───────────────┐
-   WebSocket ──ws://:9101────▶│ realtime                     │
-                              │  REST :8102（健康检查）       │
-                              │  WS  :9101  /ws/chat          │
-                              └──────────────┬───────────────┘
-                                             │ 消费/生产
-                                        Kafka (kq)
+```mermaid
+flowchart LR
+    Web["Web / App"] -->|"HTTP"| Gateway["gateway :10010<br/>CORS → Auth → Proxy<br/>etcd 服务发现 + 轮询"]
+
+    Gateway -->|"/api/user · /api/contact · /api/group"| UserAPI["user.api :8104"]
+    Gateway -->|"/api/offline"| OfflineAPI["offline.api :8101"]
+    Gateway -->|"/api/chat/redPacket"| RedPacketAPI["redpacket.api :8888"]
+
+    UserAPI --> UserRPC["user.rpc :8105"]
+
+    UserAPI --> MySQL[("MySQL 8")]
+    UserRPC --> MySQL
+    OfflineAPI --> MySQL
+    RedPacketAPI --> MySQL
+
+    UserAPI --> Redis[("Redis")]
+    OfflineAPI --> Redis
+    RedPacketAPI --> Redis
+
+    MySQL -.->|"binlog（Canal）"| OfflineAPI
+    OfflineAPI -.->|"离线消息 / 未读数"| Redis
+
+    Web -.->|"WebSocket :9101"| Realtime["realtime<br/>REST :8102 / WS :9101"]
+    Realtime -->|"生产 / 消费"| Kafka[("Kafka")]
+    OfflineAPI -->|"消费 store-topic"| Kafka
+    RedPacketAPI -->|"发件箱投递"| Kafka
 ```
 
 `ai` 路由指向外部服务 `http://localhost:8886`，不属于本仓库。
@@ -54,7 +53,7 @@
 
 细节见 [auth.md](auth.md)。
 
-> ⚠️ 会话维度的授权（`/api/group/{sessionId}/members`、`/api/offline/...`）仍由各服务自行判断，尚未统一；见 [roadmap.md](roadmap.md)。
+> 注意：会话维度的授权（`/api/group/{sessionId}/members`、`/api/offline/...`）仍由各服务自行判断，尚未统一；见 [roadmap.md](roadmap.md)。
 
 ## 4. 消息链路（IM 主流程）
 
