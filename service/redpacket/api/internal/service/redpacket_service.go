@@ -263,20 +263,31 @@ func (s *RedPacketService) DeductBalance(ctx context.Context, userId, amount int
 	return nil
 }
 
-// 初始化 Redis 红包金额池
-func (s *RedPacketService) InitRedisPool(redPacketId int64, amounts []int64) {
+// InitRedisPool 初始化 Redis 红包金额池（幂等，可安全重试）。
+//
+// 用 Lua 原子完成：pool 不存在才写金额（重试不会 RPUSH 翻倍），并登记过期 ZSet（ZADD 幂等）。
+// 返回 error 而非 panic：调用方（发送流程 / 发件箱投递器）据此决定是否异步重试。
+func (s *RedPacketService) InitRedisPool(ctx context.Context, redPacketId int64, amounts []int64) error {
 	poolKey := constants.GetPoolKey(redPacketId)
-	recordsKey := constants.GetRecordsKey(redPacketId)
+	ttlSeconds := int64(constants.RedisCacheExpireHours * 3600)
+	expireTimestamp := time.Now().UnixMilli() + constants.ExpireTimeMs // 24小时过期
 
+	// ARGV: [redPacketId, expireTimestamp, ttlSeconds, amount1, amount2, ...]
+	// 第四个值之后是 每一份红包的金额
+	argv := make([]any, 0, len(amounts)+3)
+	argv = append(argv,
+		strconv.FormatInt(redPacketId, 10),
+		strconv.FormatInt(expireTimestamp, 10),
+		strconv.FormatInt(ttlSeconds, 10),
+	)
 	for _, a := range amounts {
-		_, err := s.rds.Rpush(poolKey, strconv.FormatInt(a, 10))
-		common.ThrowIfWithMsg(err != nil, common.RedisError, "红包金额池初始化失败", err)
+		argv = append(argv, strconv.FormatInt(a, 10))
 	}
-	_ = s.rds.Expire(poolKey, constants.RedisCacheExpireHours*3600)
-	_ = s.rds.Expire(recordsKey, constants.RedisCacheExpireHours*3600)
 
-	// 红包过期时间加入 ZSET
-	expireTimestamp := time.Now().UnixMilli() + constants.ExpireTimeMs // 当前时间加上 未来 24小时 的时间
-	_, err := s.rds.Zadd(constants.ExpireZSet, expireTimestamp, strconv.FormatInt(redPacketId, 10))
-	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包过期时间插入失败", err)
+	initScript := redis.NewScript(script.InitRedisPoolLua)
+	_, err := s.rds.ScriptRunCtx(ctx, initScript, []string{poolKey, constants.ExpireZSet}, argv...)
+	if err != nil {
+		logx.Errorf("初始化红包金额池失败, redPacketId=%d: %v", redPacketId, err)
+	}
+	return err
 }

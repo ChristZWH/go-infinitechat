@@ -57,6 +57,8 @@ return {tonumber(amount), completed}
 `
 
 // 扫描过期红包 Lua 脚本
+// 只读不摘：ZRANGEBYSCORE 返回过期红包 ID，不 ZREM。
+// 摘除由 Go 侧在「发件箱幂等写入成功」之后执行——避免「先摘 ZSet 再投递」在投递失败时丢 ID。
 const ScanExpiredRedPacketsLua = `
 local zsetKey  = KEYS[1]
 local nowArg   = ARGV[1]
@@ -74,16 +76,31 @@ else
 		nowMs = tonumber(nowArg)
 end
 
-local expired = redis.call('ZRANGEBYSCORE', zsetKey, '-inf', nowMs, 'LIMIT', 0, maxCount)
-if #expired == 0 then
-		return {}
+return redis.call('ZRANGEBYSCORE', zsetKey, '-inf', nowMs, 'LIMIT', 0, maxCount)
+`
+
+// 初始化红包金额池 Lua 脚本（幂等）
+// poolKey 不存在才写金额（重试时不会重复 RPUSH 造成金额翻倍），ZADD 过期登记幂等。
+const InitRedisPoolLua = `
+local poolKey    = KEYS[1]
+local expireZSet = KEYS[2]
+local redPacketId    = ARGV[1]
+local expireTimestamp = tonumber(ARGV[2])
+local ttlSeconds      = tonumber(ARGV[3])
+
+-- 幂等：只有 pool 不存在时才写金额（Lua 原子，不会出现半截写入）
+if redis.call('EXISTS', poolKey) == 0 then
+		for i = 4, #ARGV do
+				redis.call('RPUSH', poolKey, ARGV[i])
+		end
+		if ttlSeconds > 0 then
+				redis.call('EXPIRE', poolKey, ttlSeconds)
+		end
 end
 
-for i = 1, #expired do
-		redis.call('ZREM', zsetKey, expired[i])
-end
-
-return expired  -- Go 端删除过期的 poolKey
+-- 登记到过期 ZSet（ZADD 幂等：重复执行只更新 score）
+redis.call('ZADD', expireZSet, expireTimestamp, redPacketId)
+return 1
 `
 
 // 计算红包剩余金额 Lua 脚本

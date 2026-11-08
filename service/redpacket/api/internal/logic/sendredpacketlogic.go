@@ -97,15 +97,19 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 
 		// 4. 写事务发件箱：store / push 两条消息事件与红包记录同事务落库，
 		//    由 outbox_dispatcher 异步投递，投递失败可重试（不再在请求路径裸推 Kafka）
-		l.insertOutboxEvents(ctx, req.SessionId, msgJSON)
+		l.insertOutboxEvents(ctx, req.SessionId, messageId, msgJSON)
 
 		return nil
 	})
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包发送失败", err)
 	// 事务结束
 
-	// 初始化 Redis 红包金额池 + 设置红包过期时间 ZSET
-	l.svcCtx.RedPacketService.InitRedisPool(redPacketId, amounts)
+	// 初始化 Redis 红包金额池（幂等）。失败不回 500：记日志 + 写发件箱重试事件，
+	// 由投递器异步重建——否则客户端重试会重复扣款，且红包永远领不了也退不了。
+	if err := l.svcCtx.RedPacketService.InitRedisPool(l.ctx, redPacketId, amounts); err != nil {
+		logx.Errorf("初始化红包金额池失败，转入异步重试: redPacketId=%d, err=%v", redPacketId, err)
+		l.enqueuePoolInitEvent(redPacketId, amounts)
+	}
 
 	logx.Infof("红包发送成功，红包ID: %d, 消息ID: %d, 发送者: %d, 金额: %d, 数量: %d", redPacketId, messageId, senderId, totalAmountFen, totalCount)
 
@@ -153,13 +157,14 @@ func (l *SendRedPacketLogic) buildRedPacketMessage(req *types.RedPacketSendReque
 
 // insertOutboxEvents 在事务内把 store / push 两条消息事件写入发件箱。
 // 必须调用在 txctx.WithTransaction 内，复用事务 session，与红包记录原子提交。
-func (l *SendRedPacketLogic) insertOutboxEvents(ctx context.Context, sessionId int64, msgJSON string) {
+func (l *SendRedPacketLogic) insertOutboxEvents(ctx context.Context, sessionId, messageId int64, msgJSON string) {
 	now := time.Now()
 
 	// store 事件：无 key，offline 服务消费落库（消息持久化）
 	_, err := l.svcCtx.EventOutboxModel.InsertTx(ctx, &event_outbox.EventOutbox{
 		Topic:       commonconsts.KafkaMessageTopicStore,
 		MessageKey:  "",
+		DedupKey:    "store:" + strconv.FormatInt(messageId, 10),
 		Payload:     msgJSON,
 		Status:      event_outbox.StatusPending,
 		CreatedTime: now,
@@ -171,12 +176,40 @@ func (l *SendRedPacketLogic) insertOutboxEvents(ctx context.Context, sessionId i
 	_, err = l.svcCtx.EventOutboxModel.InsertTx(ctx, &event_outbox.EventOutbox{
 		Topic:       commonconsts.KafkaMessageTopicPush,
 		MessageKey:  strconv.FormatInt(sessionId, 10),
+		DedupKey:    "push:" + strconv.FormatInt(messageId, 10),
 		Payload:     msgJSON,
 		Status:      event_outbox.StatusPending,
 		CreatedTime: now,
 		UpdatedTime: now,
 	})
 	common.ThrowIfWithMsg(err != nil, common.MysqlError, "写 push 发件箱失败", err)
+}
+
+// enqueuePoolInitEvent 把「重建红包金额池」写进发件箱，由投递器异步重试（幂等）。
+// 只在 InitRedisPool 同步失败后调用，避免客户端重试造成重复扣款。
+func (l *SendRedPacketLogic) enqueuePoolInitEvent(redPacketId int64, amounts []int64) {
+	payload, err := json.Marshal(map[string]interface{}{
+		"redPacketId": redPacketId,
+		"amounts":     amounts,
+	})
+	if err != nil {
+		common.Errorf("序列化红包池初始化事件失败: %v", err)
+		return
+	}
+
+	now := time.Now()
+	_, err = l.svcCtx.EventOutboxModel.InsertTx(context.Background(), &event_outbox.EventOutbox{
+		Topic:       event_outbox.TopicRedisPoolInit,
+		MessageKey:  "",
+		DedupKey:    "pool:" + strconv.FormatInt(redPacketId, 10),
+		Payload:     string(payload),
+		Status:      event_outbox.StatusPending,
+		CreatedTime: now,
+		UpdatedTime: now,
+	})
+	if err != nil {
+		common.Errorf("写红包池初始化事件到发件箱失败: %v", err)
+	}
 }
 
 func (l *SendRedPacketLogic) validateSendRequest(req *types.RedPacketSendRequest) {

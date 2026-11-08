@@ -6,6 +6,7 @@ import (
 	luascript "go-infinitechat/service/redpacket/api/internal/script"
 	"go-infinitechat/service/redpacket/api/internal/svc"
 	"go-infinitechat/service/redpacket/api/internal/types/constants"
+	"go-infinitechat/service/redpacket/model/event_outbox"
 	"strconv"
 	"time"
 
@@ -22,12 +23,6 @@ const (
 
 // 启动过期红包扫描调度器，该方法会阻塞当前 goroutine，应通过 go 关键字在独立 goroutine 中启动
 func StartExpirationDispatcher(ctx context.Context, svcCtx *svc.ServiceContext) {
-	// KafkaPusherManager 为 nil 时直接拒绝启动，避免静默丢数据
-	if svcCtx.KafkaPusherManager == nil {
-		common.Error("KafkaPusherManager 未初始化，过期红包扫描调度器无法启动，请检查 Kafka 配置")
-		return
-	}
-
 	// Script 对象提到循环外，只创建一次
 	scanScript := redis.NewScript(luascript.ScanExpiredRedPacketsLua)
 
@@ -76,9 +71,9 @@ func dispatch(ctx context.Context, svcCtx *svc.ServiceContext, scanScript *redis
 
 	// 参数从 config 读取
 	cfg := svcCtx.Config.ExpirationDispatcher
-	batchSize := cfg.BatchSize
-	maxBatchesPerTick := cfg.MaxBatchesPerTick
-	timeBudgetMs := cfg.TimeBudgetMs
+	batchSize := cfg.BatchSize                 //没批最多扫描红包数
+	maxBatchesPerTick := cfg.MaxBatchesPerTick // 每轮最多处理批次数
+	timeBudgetMs := cfg.TimeBudgetMs           // 单次扫描最大时间
 
 	startTime := time.Now().UnixMilli()
 	totalExpiredCount := 0
@@ -96,15 +91,18 @@ func dispatch(ctx context.Context, svcCtx *svc.ServiceContext, scanScript *redis
 			break
 		}
 
-		// 推送到 Kafka；失败时把 ID 放回 ZSet（score=当前时间），下一轮扫描会重新扫出重试
+		// 过期事件走事务发件箱：INSERT IGNORE 幂等落库（dedup_key=expire:<id>），
+		// 由 outbox_dispatcher 投递 Kafka；成功登记后才 ZREM 摘除 ZSet。
+		// 插入失败（MySQL 挂）不摘除，下轮重扫重插。
 		for _, redPacketId := range expiredIds {
-			if err := svcCtx.KafkaPusherManager.KPush(ctx, constants.TopicRedpacketExpiration, redPacketId, redPacketId); err != nil {
-				logx.Errorf("发送红包过期事件到Kafka失败，红包ID: %s, 错误: %v", redPacketId, err)
-				_, zaddErr := svcCtx.Redis.Zadd(constants.ExpireZSet, time.Now().UnixMilli(), redPacketId)
-				if zaddErr != nil {
-					// ZADD 也失败说明 Redis 异常，此 ID 只能靠日志排查（彻底兜底需 outbox 方案）
-					logx.Errorf("红包ID放回过期ZSet失败，红包ID: %s, 错误: %v", redPacketId, zaddErr)
-				}
+			if err := enqueueExpirationEvent(ctx, svcCtx, redPacketId); err != nil {
+				logx.Errorf("写过期事件到发件箱失败，红包ID: %s, 错误: %v（下轮重试）", redPacketId, err)
+				continue
+			}
+			// 已登记进发件箱（无论新插入还是去重），从 ZSet 摘除清理；
+			// ZREM 失败也安全：下轮重扫，INSERT IGNORE 去重后再次尝试摘除。
+			if _, err := svcCtx.Redis.Zrem(constants.ExpireZSet, redPacketId); err != nil {
+				logx.Errorf("从过期ZSet摘除失败，红包ID: %s, 错误: %v", redPacketId, err)
 			}
 		}
 
@@ -120,6 +118,22 @@ func dispatch(ctx context.Context, svcCtx *svc.ServiceContext, scanScript *redis
 	if totalExpiredCount > 0 {
 		logx.Infof("过期红包扫描完成，总共处理: %d 个，耗时: %d ms，批次数: %d", totalExpiredCount, time.Now().UnixMilli()-startTime, batches)
 	}
+}
+
+// enqueueExpirationEvent 把过期红包事件幂等写入发件箱（dedup_key=expire:<id>）。
+// 由 outbox_dispatcher 投递到 Kafka，ExpirationConsumer 消费退款（幂等）。
+func enqueueExpirationEvent(ctx context.Context, svcCtx *svc.ServiceContext, redPacketId string) error {
+	now := time.Now()
+	_, err := svcCtx.EventOutboxModel.InsertTx(ctx, &event_outbox.EventOutbox{
+		Topic:       constants.TopicRedpacketExpiration,
+		MessageKey:  redPacketId,             // key = 红包ID
+		DedupKey:    "expire:" + redPacketId, // 幂等去重：扫描重扫时 INSERT IGNORE 跳过
+		Payload:     redPacketId,             // payload = 红包ID（ExpirationConsumer 直接 parse int64）
+		Status:      event_outbox.StatusPending,
+		CreatedTime: now,
+		UpdatedTime: now,
+	})
+	return err
 }
 
 func parseStringList(result interface{}) []string {

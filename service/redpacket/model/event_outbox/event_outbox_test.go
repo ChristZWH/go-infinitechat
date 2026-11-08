@@ -27,6 +27,7 @@ func sampleEvent() *EventOutbox {
 	return &EventOutbox{
 		Topic:       "store-topic",
 		MessageKey:  "",
+		DedupKey:    "store:123",
 		Payload:     `{"sessionId":1,"senderId":2,"type":3}`,
 		Status:      StatusPending,
 		CreatedTime: now,
@@ -34,20 +35,42 @@ func sampleEvent() *EventOutbox {
 	}
 }
 
-// InsertTx 非事务分支：直接走 conn.ExecCtx
+// InsertTx 非事务分支：INSERT IGNORE，返回 RowsAffected（1=新插入）
 func TestInsertTxNonTransactional(t *testing.T) {
 	_, mock, m := newTestModel(t)
 	ev := sampleEvent()
 
-	mock.ExpectExec("insert into `event_outbox` (`topic`, `message_key`, `payload`, `status`, `created_time`, `updated_time`) values (?, ?, ?, ?, ?, ?)").
-		WithArgs(ev.Topic, ev.MessageKey, ev.Payload, ev.Status, ev.CreatedTime, ev.UpdatedTime).
+	mock.ExpectExec("insert ignore into `event_outbox` (`topic`, `message_key`, `dedup_key`, `payload`, `status`, `created_time`, `updated_time`) values (?, ?, ?, ?, ?, ?, ?)").
+		WithArgs(ev.Topic, ev.MessageKey, ev.DedupKey, ev.Payload, ev.Status, ev.CreatedTime, ev.UpdatedTime).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	if _, err := m.InsertTx(context.Background(), ev); err != nil {
+	affected, err := m.InsertTx(context.Background(), ev)
+	if err != nil {
 		t.Fatalf("InsertTx: %v", err)
+	}
+	if affected != 1 {
+		t.Fatalf("affected = %d, 期望 1（新插入）", affected)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("未满足的 SQL 期望: %v", err)
+	}
+}
+
+// InsertTx 幂等：dedup_key 冲突时 INSERT IGNORE 返回 affected=0
+func TestInsertTxIgnoresDuplicate(t *testing.T) {
+	_, mock, m := newTestModel(t)
+	ev := sampleEvent()
+
+	mock.ExpectExec("insert ignore into `event_outbox` (`topic`, `message_key`, `dedup_key`, `payload`, `status`, `created_time`, `updated_time`) values (?, ?, ?, ?, ?, ?, ?)").
+		WithArgs(ev.Topic, ev.MessageKey, ev.DedupKey, ev.Payload, ev.Status, ev.CreatedTime, ev.UpdatedTime).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	affected, err := m.InsertTx(context.Background(), ev)
+	if err != nil {
+		t.Fatalf("InsertTx: %v", err)
+	}
+	if affected != 0 {
+		t.Fatalf("affected = %d, 期望 0（重复被忽略）", affected)
 	}
 }
 
@@ -56,11 +79,11 @@ func TestFindPending(t *testing.T) {
 	_, mock, m := newTestModel(t)
 
 	now := time.Now()
-	mock.ExpectQuery("select `id`, `topic`, `message_key`, `payload`, `status`, `created_time`, `updated_time` from `event_outbox` where `status` = ? order by `id` asc limit ?").
+	mock.ExpectQuery("select `id`, `topic`, `message_key`, `dedup_key`, `payload`, `status`, `created_time`, `updated_time` from `event_outbox` where `status` = ? order by `id` asc limit ?").
 		WithArgs(StatusPending, 100).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "topic", "message_key", "payload", "status", "created_time", "updated_time"}).
-			AddRow(1, "store-topic", "", `{}`, StatusPending, now, now).
-			AddRow(2, "message-topic", "9", `{}`, StatusPending, now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "topic", "message_key", "dedup_key", "payload", "status", "created_time", "updated_time"}).
+			AddRow(1, "store-topic", "", "store:1", `{}`, StatusPending, now, now).
+			AddRow(2, "message-topic", "9", "push:2", `{}`, StatusPending, now, now))
 
 	rows, err := m.FindPending(context.Background(), 100)
 	if err != nil {
