@@ -109,6 +109,7 @@ func pushCompletedEvent(svcCtx *svc.ServiceContext, redPacketId int64) error {
 }
 
 func handleReceiveEvent(svcCtx *svc.ServiceContext, values map[string]interface{}) error {
+	// 领取入账：幂等检查 + 事务（插领取记录 + 加余额 + 写余额流水）
 	return svcCtx.RedPacketService.SettleReceive(
 		context.Background(),
 		streamValueToInt64(values["userId"]),

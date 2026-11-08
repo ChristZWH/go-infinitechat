@@ -35,6 +35,9 @@ func StartConsumer(svcCtx *svc.ServiceContext, c config.Config) []func() {
 		Group:       "redpacket-completed-handler-group",
 		Topic:       constants.TopicRedpacketCompleted,
 		Offset:      "last",
+		// 关键：kq 的 ForceCommit 默认为 true，即 handler 返回 error 也会提交 offset。
+		// 显式关掉，落库失败时至少不会立刻把位点推过去（配合 consumer 内的有限重试）。
+		ForceCommit: false,
 		Consumers:   3,
 		Processors:  3,
 	}, kq.WithHandle(completedConsumer.Consume))
@@ -49,6 +52,9 @@ func StartConsumer(svcCtx *svc.ServiceContext, c config.Config) []func() {
 		Group:       "expiration-task-executor-group",
 		Topic:       constants.TopicRedpacketExpiration,
 		Offset:      "last",
+		// 关键：kq 的 ForceCommit 默认为 true，即 handler 返回 error 也会提交 offset。
+		// 显式关掉，落库失败时至少不会立刻把位点推过去（配合 consumer 内的有限重试）。
+		ForceCommit: false,
 		Consumers:   3,
 		Processors:  3,
 	}, kq.WithHandle(expirationConsumer.Consume))
