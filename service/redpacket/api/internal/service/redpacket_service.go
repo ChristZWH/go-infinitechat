@@ -240,9 +240,24 @@ func (s *RedPacketService) CleanRedisCache(redPacketId int64) {
 	_, _ = s.rds.Zrem(constants.ExpireZSet, strconv.FormatInt(redPacketId, 10))
 }
 
-// 计算红包剩余金额（Lua 脚本）
+// CalculateRemainAmount 计算红包剩余金额（用于过期退款）。
+//
+// 优先读 Redis pool（LRANGE 求和）；pool 不存在（TTL 过期 / 从未建池）时用 DB 差额兜底：
+// TotalAmount − SUM(领取记录金额)。否则 Redis 过期会返回 0，导致退款归零、钱蒸发。
 func (s *RedPacketService) CalculateRemainAmount(ctx context.Context, redPacketId int64) (int64, error) {
 	poolKey := constants.GetPoolKey(redPacketId)
+
+	// pool 不存在 → DB 差额兜底
+	exists, err := s.rds.ExistsCtx(ctx, poolKey)
+	if err != nil {
+		logx.Errorf("判断红包金额池是否存在失败, redPacketId=%d: %v", redPacketId, err)
+		return 0, err
+	}
+	if !exists {
+		return s.calculateRemainFromDB(ctx, redPacketId)
+	}
+
+	// pool 存在 → LRANGE 求和
 	calcScript := redis.NewScript(script.CalculateRemainAmountLua)
 	result, err := s.rds.ScriptRunCtx(ctx, calcScript, []string{poolKey})
 	if err != nil {
@@ -253,6 +268,24 @@ func (s *RedPacketService) CalculateRemainAmount(ctx context.Context, redPacketI
 		return 0, nil
 	}
 	return ToInt64(result), nil
+}
+
+// calculateRemainFromDB 用 DB 差额兜底计算剩余金额：总金额 − 已领取金额。
+// 不依赖 Redis pool 存活，pool TTL 过期后仍能正确退款。
+func (s *RedPacketService) calculateRemainFromDB(ctx context.Context, redPacketId int64) (int64, error) {
+	rp, err := s.RedPacketModel.FindOne(ctx, redPacketId)
+	if err != nil {
+		return 0, err
+	}
+	_, received, err := s.RedPacketReceiveModel.CountSumByRedPacketId(ctx, redPacketId)
+	if err != nil {
+		return 0, err
+	}
+	remain := rp.TotalAmount - received
+	if remain < 0 {
+		remain = 0
+	}
+	return remain, nil
 }
 
 // 扣减用户余额

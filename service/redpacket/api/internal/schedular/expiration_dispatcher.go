@@ -71,7 +71,7 @@ func dispatch(ctx context.Context, svcCtx *svc.ServiceContext, scanScript *redis
 
 	// 参数从 config 读取
 	cfg := svcCtx.Config.ExpirationDispatcher
-	batchSize := cfg.BatchSize                 //没批最多扫描红包数
+	batchSize := cfg.BatchSize                 // 没批最多扫描红包数
 	maxBatchesPerTick := cfg.MaxBatchesPerTick // 每轮最多处理批次数
 	timeBudgetMs := cfg.TimeBudgetMs           // 单次扫描最大时间
 

@@ -21,6 +21,18 @@ const (
 // StartOutboxDispatcher 启动事务发件箱投递器：
 // 轮询 status=0 的事件 → 按类型处理（推 Kafka 或重建 Redis 金额池）→ 成功标记已投递。
 //
+// 发件箱分派关系（谁写 → 投递器 → 谁消费）：
+//
+//	写入口                           topic                      投递器动作           最终消费者
+//	─────────────────────────────────────────────────────────────────────────────────────────
+//	sendredpacketlogic（发红包）      store-topic                 pushKafkaEvent       offline 消费落库
+//	sendredpacketlogic（发红包）      message-topic               pushKafkaEvent       realtime 消费推送
+//	sendredpacketlogic（发红包）      __redis__pool_init__        handlePoolInitEvent  投递器自处理（重建金额池）
+//	expiration_dispatcher（过期扫描） redpacket-expiration-topic  pushKafkaEvent       ExpirationConsumer 退款
+//
+//	注意：抢红包入账不走这里——它走 Redis Stream（receive_stream_worker），
+//	只有领完事件由 stream worker 直接推 Kafka，也不经过发件箱。
+//
 // at-least-once：处理失败保留 pending 下轮重试；消费端（offline/realtime）与池初始化均幂等。
 // 注意：PusherManager 必须用 WithSyncPush 创建，否则 PushRaw 返回 nil 只代表"入内存队列"，
 // 后台真写失败会静默丢——投递器会误判并误标 published。

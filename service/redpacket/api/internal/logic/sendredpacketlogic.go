@@ -66,8 +66,9 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 	}
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包金额分配失败")
 
-	// 构建红包消息（事务前拿到 messageId 与 JSON，事务内只做落库）
+	// 构建红包消息 + 建池事件（事务前拿到 messageId / msgJSON / poolInitPayload）
 	messageId, msgJSON := l.buildRedPacketMessage(req, redPacketId)
+	poolInitPayload := l.buildPoolInitPayload(redPacketId, amounts)
 
 	// 开启事务：扣减余额 + 创建红包记录 + 记录余额日志 + 写发件箱
 	err = txctx.WithTransaction(l.ctx, l.svcCtx.SqlxConn, func(ctx context.Context) error {
@@ -95,20 +96,20 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 		// 3. 记录余额变动日志
 		l.svcCtx.RedPacketService.InsertBalanceLog(ctx, req.SenderId, totalAmountFen, constants.BalanceLogTypeSend, redPacketId)
 
-		// 4. 写事务发件箱：store / push 两条消息事件与红包记录同事务落库，
-		//    由 outbox_dispatcher 异步投递，投递失败可重试（不再在请求路径裸推 Kafka）
-		l.insertOutboxEvents(ctx, req.SessionId, messageId, msgJSON)
+		// 4. 写事务发件箱：store / push 两条消息事件 + pool-init 建池事件，
+		//    与红包记录同事务落库，由 outbox_dispatcher 异步投递，投递失败可重试
+		l.insertOutboxEvents(ctx, req.SessionId, messageId, redPacketId, msgJSON, poolInitPayload)
 
 		return nil
 	})
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包发送失败", err)
 	// 事务结束
 
-	// 初始化 Redis 红包金额池（幂等）。失败不回 500：记日志 + 写发件箱重试事件，
-	// 由投递器异步重建——否则客户端重试会重复扣款，且红包永远领不了也退不了。
+	// 同步建池（快速路径，幂等）：让红包立即可领。
+	// 失败不回 500、也不在这里补写事件——pool-init 事件已在事务里落库（与扣款原子），
+	// 投递器会异步重建，客户端不会重复扣款，红包也不会领不了/退不了。
 	if err := l.svcCtx.RedPacketService.InitRedisPool(l.ctx, redPacketId, amounts); err != nil {
-		logx.Errorf("初始化红包金额池失败，转入异步重试: redPacketId=%d, err=%v", redPacketId, err)
-		l.enqueuePoolInitEvent(redPacketId, amounts)
+		logx.Errorf("同步建池失败，等待投递器异步重建: redPacketId=%d, err=%v", redPacketId, err)
 	}
 
 	logx.Infof("红包发送成功，红包ID: %d, 消息ID: %d, 发送者: %d, 金额: %d, 数量: %d", redPacketId, messageId, senderId, totalAmountFen, totalCount)
@@ -155,9 +156,10 @@ func (l *SendRedPacketLogic) buildRedPacketMessage(req *types.RedPacketSendReque
 	return messageId, string(msgJSON)
 }
 
-// insertOutboxEvents 在事务内把 store / push 两条消息事件写入发件箱。
+// insertOutboxEvents 在事务内把 store / push 两条消息事件 + pool-init 建池事件写入发件箱。
 // 必须调用在 txctx.WithTransaction 内，复用事务 session，与红包记录原子提交。
-func (l *SendRedPacketLogic) insertOutboxEvents(ctx context.Context, sessionId, messageId int64, msgJSON string) {
+// pool-init 事件与扣款同事务，保证 Redis 抖动时金额池也能被投递器异步重建。
+func (l *SendRedPacketLogic) insertOutboxEvents(ctx context.Context, sessionId, messageId, redPacketId int64, msgJSON, poolInitPayload string) {
 	now := time.Now()
 
 	// store 事件：无 key，offline 服务消费落库（消息持久化）
@@ -183,33 +185,28 @@ func (l *SendRedPacketLogic) insertOutboxEvents(ctx context.Context, sessionId, 
 		UpdatedTime: now,
 	})
 	common.ThrowIfWithMsg(err != nil, common.MysqlError, "写 push 发件箱失败", err)
-}
 
-// enqueuePoolInitEvent 把「重建红包金额池」写进发件箱，由投递器异步重试（幂等）。
-// 只在 InitRedisPool 同步失败后调用，避免客户端重试造成重复扣款。
-func (l *SendRedPacketLogic) enqueuePoolInitEvent(redPacketId int64, amounts []int64) {
-	payload, err := json.Marshal(map[string]interface{}{
-		"redPacketId": redPacketId,
-		"amounts":     amounts,
-	})
-	if err != nil {
-		common.Errorf("序列化红包池初始化事件失败: %v", err)
-		return
-	}
-
-	now := time.Now()
-	_, err = l.svcCtx.EventOutboxModel.InsertTx(context.Background(), &event_outbox.EventOutbox{
+	// pool-init 事件：与扣款同事务落库，投递器幂等重建金额池（快速路径失败时的兜底）
+	_, err = l.svcCtx.EventOutboxModel.InsertTx(ctx, &event_outbox.EventOutbox{
 		Topic:       event_outbox.TopicRedisPoolInit,
 		MessageKey:  "",
 		DedupKey:    "pool:" + strconv.FormatInt(redPacketId, 10),
-		Payload:     string(payload),
+		Payload:     poolInitPayload,
 		Status:      event_outbox.StatusPending,
 		CreatedTime: now,
 		UpdatedTime: now,
 	})
-	if err != nil {
-		common.Errorf("写红包池初始化事件到发件箱失败: %v", err)
-	}
+	common.ThrowIfWithMsg(err != nil, common.MysqlError, "写 pool-init 发件箱失败", err)
+}
+
+// buildPoolInitPayload 序列化「重建金额池」事件的 payload。
+func (l *SendRedPacketLogic) buildPoolInitPayload(redPacketId int64, amounts []int64) string {
+	payload, err := json.Marshal(map[string]interface{}{
+		"redPacketId": redPacketId,
+		"amounts":     amounts,
+	})
+	common.ThrowIfWithMsg(err != nil, common.MarshalFailedError, "序列化红包池初始化事件失败", err)
+	return string(payload)
 }
 
 func (l *SendRedPacketLogic) validateSendRequest(req *types.RedPacketSendRequest) {
