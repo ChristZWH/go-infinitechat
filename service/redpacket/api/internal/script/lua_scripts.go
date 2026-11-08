@@ -34,6 +34,13 @@ end
 
 redis.call('HSET', recordKey, userId, amount)
 
+-- 判断是否领完（在 XADD 之前算好，把 completed 一起写进事件）
+local left = redis.call('LLEN', poolKey)
+local completed = 0
+if left == 0 then
+		completed = 1
+end
+
 -- 领取事件写入 Stream（发件箱）：与 LPOP/HSET 同一脚本 = 原子。
 -- 这样即使进程在 LPOP 之后、落库之前崩溃，事件也已在 Redis 持久化，
 -- 由 stream worker 消费入账（at-least-once），不存在「抢到但钱没到账」的窗口。
@@ -43,13 +50,9 @@ redis.call('XADD', streamKey, 'MAXLEN', '~', 10000, '*',
 		'userId', userId,
 		'redPacketId', redPacketId,
 		'amount', amount,
-		'receivedTime', receivedTime)
+		'receivedTime', receivedTime,
+		'completed', completed)
 
-local left = redis.call('LLEN', poolKey)
-local completed = 0
-if left == 0 then
-		completed = 1
-end
 return {tonumber(amount), completed}
 `
 

@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"go-infinitechat/service/redpacket/api/internal/svc"
@@ -39,9 +40,12 @@ func runReceiveStreamWorker(svcCtx *svc.ServiceContext) {
 	}
 	defer node.Close()
 
-	// 2. 创建消费组（已存在时返回 BUSYGROUP，忽略即可）；可以有多个消费者 Group （各 消费者Group 之间相互独立），本项目没有这么做
-	// '$' 从新的 Group的起始位置开始，重启可能会丢失数据; '0' 从头开始读取
-	_, _ = rds.XGroupCreateMkStream(stream, group, "0")
+	// 2. 创建消费组：已存在时返回 BUSYGROUP 属正常，其余真实错误要记日志；可以有多个消费者 Group （各 消费者Group 之间相互独立），本项目没有这么做
+	// '$' 从 Group 起始位置开始（重启丢消息）；'0' 从头读（SettleReceive 幂等，重放安全）
+	_, err = rds.XGroupCreateMkStream(stream, group, "0")
+	if err != nil && !strings.Contains(err.Error(), "BUSYGROUP") {
+		logx.Errorf("创建消费组失败: %v", err)
+	}
 
 	// 二、循环阶段
 	// 死循环，所以需要 go 开启异步 goroutine
@@ -69,7 +73,7 @@ func runReceiveStreamWorker(svcCtx *svc.ServiceContext) {
 	}
 }
 
-// processStreams 逐条处理 Stream 消息：入账成功 XACK，失败留在 pending 等下一轮重读。
+// processStreams 逐条处理 Stream 消息：（入账成功 + 领完事件推送成功）才 XACK；任一失败留在 pending 等下一轮重读。
 func processStreams(svcCtx *svc.ServiceContext, rds *redis.Redis, stream, group string, streams []red.XStream) {
 	for _, s := range streams {
 		for _, msg := range s.Messages {
@@ -77,11 +81,31 @@ func processStreams(svcCtx *svc.ServiceContext, rds *redis.Redis, stream, group 
 				logx.Errorf("领取事件入账失败, id=%s: %v", msg.ID, err)
 				continue
 			}
+
+			// 领完事件：本次领取恰好清空金额池（completed=1），推 Kafka 让 CompletedConsumer 落库标记。
+			// 也放进 pending 重试闭环：推送失败不 XACK，下轮重读（SettleReceive 幂等跳过，再推一次）。
+			if streamValueToInt64(msg.Values["completed"]) == 1 {
+				if err := pushCompletedEvent(svcCtx, streamValueToInt64(msg.Values["redPacketId"])); err != nil {
+					logx.Errorf("领完事件推送失败, id=%s: %v", msg.ID, err)
+					continue
+				}
+			}
+
 			if _, err := rds.XAck(stream, group, msg.ID); err != nil {
 				logx.Errorf("XACK 失败, id=%s: %v", msg.ID, err)
 			}
 		}
 	}
+}
+
+// pushCompletedEvent 推送红包领完事件到 Kafka（CompletedConsumer 消费：状态置已领完 + 清缓存）。
+func pushCompletedEvent(svcCtx *svc.ServiceContext, redPacketId int64) error {
+	if svcCtx.KafkaPusherManager == nil {
+		return nil // 未接 Kafka 时跳过（本地开发）
+	}
+	return svcCtx.KafkaPusherManager.Push(context.Background(), constants.TopicRedpacketCompleted, map[string]interface{}{
+		"redPacketId": redPacketId,
+	})
 }
 
 func handleReceiveEvent(svcCtx *svc.ServiceContext, values map[string]interface{}) error {

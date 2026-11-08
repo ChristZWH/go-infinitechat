@@ -96,14 +96,11 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 	// 领取入账不再走 Kafka：抢包 Lua 已把领取事件原子写入 Redis Stream（发件箱），
 	// 由 receive stream worker 消费落库。LPOP + HSET + XADD 同一脚本 = 原子，
 	// 不存在「抢到但事件丢失、钱永远不到账」的窗口。
-
+	//
+	// 领完事件也一样：Lua 在 left==0 时把 completed=1 写进同一条事件，
+	// 由 worker 推 Kafka（CompletedConsumer 落库标记 + 清缓存），请求路径不再裸推。
 	if constants.IsCompleted(completed) {
 		resp.Status = constants.StatusCompleted
-		err := l.svcCtx.KafkaPusherManager.Push(l.ctx, constants.TopicRedpacketCompleted, map[string]interface{}{
-			"redPacketId": req.RedPacketId,
-		})
-		// 和上面 Kafka 推送失败一样
-		common.ThrowIfWithMsg(err != nil, common.SystemError, "Kafka 消息推送失败 TopicRedpacketCompleted", err)
 	}
 
 	logx.Infof("红包领取处理完成，用户ID: %d, 状态: %d, 金额: %s", req.UserId, resp.Status, resp.Amount)
