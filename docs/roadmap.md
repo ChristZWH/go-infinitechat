@@ -44,9 +44,11 @@
 | 项 | 说明 | 建议 |
 |---|---|---|
 | 发红包幂等 | `clientMessageId` / `PreventDuplicatePrefix` 已定义未使用，重复提交会重复扣款 | 用 `clientMessageId` 做 Redis SETNX 幂等键，或数据库唯一约束 |
-| LPOP 后 Kafka 失败 | 金额已从池里拿走，事件没发出 → 钱既不入账也不回池 | Lua 补偿（HDEL + LPUSH 回池）；根治用事务性发件箱 |
-| `InitRedisPool` 失败 | 事务已提交、钱已扣，但红包不可领也扫不到 | 失败时补偿退款 + 定时对账「status=0 且不在 ZSet」 |
-| 过期扫描先 ZREM 再投递 | 进程崩溃 / 投递失败 → 该红包永远不再被扫描 | 消费成功后再摘；或先写 MySQL 任务表再摘 |
+| LPOP 后 Kafka 失败 | 金额已从池里拿走，事件没发出 → 钱既不入账也不回池 | 已解决：Lua 同脚本 XADD 到 Redis Stream，worker 消费入账 |
+| `InitRedisPool` 失败 | 事务已提交、钱已扣，但红包不可领也扫不到 | 已解决：pool-init 事件进事务，投递器异步重建 |
+| 过期扫描先 ZREM 再投递 | 进程崩溃 / 投递失败 → 该红包永远不再被扫描 | 已解决：先 INSERT IGNORE 写发件箱，成功后再 ZREM |
+| 退款 DB 差额兜底的双花窗口 | pool 过期消失后，DB 差额漏算"已 LPOP 但仍在 Stream PEL 未入账"的领取 → 退款多退，worker 稍后入账后双花 | 抢包 Lua INCR 未入账计数、SettleReceive 成功 DECR，退款前检查计数为 0（不为 0 返回 err 交给重试） |
+| pool-init 事件漂移过期时间 | 投递器每次处理都重算 now+24h 并 ZADD 覆盖 score，停摆重启后红包被"续命"到重启+24h | payload 带发送时刻的原始 expireTimestamp + ZADD 加 NX 不覆盖已有 score |
 | 扫描锁 TTL 1s < 单轮预算 5s | 多实例互斥中途失效 | TTL ≥ 预算 + 余量，或加续期 |
 | 通过好友申请非原子 | 先把申请置为通过（独立提交），再建好友关系 | 两步合进同一事务 |
 | 删好友不清 model 缓存 | `Tx` 方法走裸 SQL，不触发 go-zero 缓存失效 | 提交后显式删本地 cache key |
@@ -55,7 +57,7 @@
 | 通知推送载荷 | 推的是裸 `messageId` 而非消息 JSON | 推 `val` |
 | 跨节点推送 | `message-topic` 全局共享消费组，接收者不在本节点就丢 | 按 sessionId hash 分区，或节点间转发 |
 | Kafka 消费失败吞掉 | realtime 消费失败也 `return nil`，offset 照常提交 | 失败返回 error + 有限重试 + 死信 |
-| Canal 用 `Get` 而非 `GetWithOutAck` | 位点在处理前就前进，Redis 错误被 `_ =` 吞掉 | 改 `GetWithOutAck`，整批成功再 Ack |
+| Canal 用 `Get` 而非 `GetWithOutAck` | 位点在处理前就前进，Redis 错误被 `_ =` 吞掉 | 已解决：改 `GetWithOutAck`，整批成功再 Ack |
 
 ## P2 性能与工程质量
 

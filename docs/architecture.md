@@ -93,16 +93,14 @@ MySQL message 表 --binlog--> Canal(offline) --解析--> Redis:
 
 | topic | 生产方 | 消费方 | 用途 |
 |---|---|---|---|
-| `store-topic` | realtime、redpacket | offline | 消息落 MySQL |
-| `message-topic` | realtime、redpacket | realtime | 在线推送 |
+| `store-topic` | realtime、redpacket（经发件箱） | offline | 消息落 MySQL |
+| `message-topic` | realtime、redpacket（经发件箱） | realtime | 在线推送 |
 | `system-notification-topic` | user.api | realtime | 系统/业务通知推送 |
 | `store-notification-topic` | realtime | offline | 用户离线时的通知落库 |
-| `redpacket-creation-topic` | redpacket | redpacket | 过期扫描注册 |
-| `topic-redpacket-receive` | redpacket | redpacket | 领取记录入账 |
-| `topic-redpacket-completed` | redpacket | redpacket | 领完状态流转 |
-| `redpacket-expiration-topic` | redpacket 扫描器 | redpacket | 过期退款 |
+| `topic-redpacket-completed` | redpacket（stream worker） | redpacket | 领完状态流转 |
+| `redpacket-expiration-topic` | redpacket 扫描器（经发件箱） | redpacket | 过期退款 |
 
-> `service/redpacket/.../constants` 里另有 `message-store-topic` / `message-push-topic` 两个常量，与上表并不一致且未被真正使用（只用于创建 Pusher），属于待清理项。
+> 红包领取入账不再走 Kafka，改由 Redis Stream（`receive_stream_worker`）消费；发红包的 store/push 与过期事件均经事务发件箱投递。
 
 ## 6. Redis key
 
