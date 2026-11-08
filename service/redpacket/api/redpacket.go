@@ -68,6 +68,9 @@ func main() {
 	// 启动领取事件发件箱消费者（Redis Stream）：抢包 Lua 原子写入，这里消费入账
 	consumer.StartReceiveStreamWorker(svcCtx)
 
+	// 启动事务发件箱投递器（MySQL Outbox → Kafka）：红包消息事件同事务落库，这里异步投递
+	consumer.StartOutboxDispatcher(svcCtx)
+
 	// 启动 Kafka 消费者
 	stopFunc := consumer.StartConsumer(svcCtx, c)
 	defer func() {

@@ -8,6 +8,7 @@ import (
 	"go-infinitechat/service/redpacket/api/internal/config"
 	"go-infinitechat/service/redpacket/api/internal/service"
 	"go-infinitechat/service/redpacket/api/internal/types/constants"
+	"go-infinitechat/service/redpacket/model/event_outbox"
 	"go-infinitechat/service/redpacket/model/red_packet"
 	"go-infinitechat/service/redpacket/model/red_packet_receive"
 	"go-infinitechat/service/user/model/balance_log"
@@ -29,6 +30,7 @@ type ServiceContext struct {
 	RedPacketReceiveModel red_packet_receive.RedPacketReceiveModel
 	UserBalanceModel      user_balance.UserBalanceModel
 	BalanceLogModel       balance_log.BalanceLogModel
+	EventOutboxModel      event_outbox.EventOutboxModel
 
 	// RPC
 	UserRPC userrpc.UserRpc
@@ -48,6 +50,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	redPacketReceiveModel := red_packet_receive.NewRedPacketReceiveModel(conn, c.Cache)
 	userBalanceModel := user_balance.NewUserBalanceModel(conn, c.Cache)
 	balanceLogModel := balance_log.NewBalanceLogModel(conn, c.Cache)
+	eventOutboxModel := event_outbox.NewEventOutboxModel(conn)
 	userRpc := userrpc.NewUserRpc(zrpc.MustNewClient(c.UserRpc))
 
 	var kafkaPusherManager *kafka.PusherManager
@@ -66,6 +69,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		RedPacketReceiveModel: redPacketReceiveModel,
 		UserBalanceModel:      userBalanceModel,
 		BalanceLogModel:       balanceLogModel,
+		EventOutboxModel:      eventOutboxModel,
 		// RPC
 		UserRPC:            userRpc,
 		KafkaPusherManager: kafkaPusherManager,

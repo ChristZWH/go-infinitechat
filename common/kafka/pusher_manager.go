@@ -19,7 +19,10 @@ func NewPusherManager(brokers []string, topics []string) *PusherManager {
 	}
 
 	for _, topic := range topics {
-		pusher := kq.NewPusher(brokers, topic)
+		// 必须用 WithSyncPush：默认的异步 ChunkExecutor 只把消息塞进内存队列就返回 nil，
+		// 后台真正写 Kafka 失败时整批静默丢弃、无重试——对"发件箱投递器"来说
+		// "返回 nil ≠ 已投递"，会让投递器误判并误标 published。
+		pusher := kq.NewPusher(brokers, topic, kq.WithSyncPush())
 		pm.pushers[topic] = pusher
 	}
 
@@ -80,4 +83,33 @@ func (pm *PusherManager) Close() {
 			common.Errorf("关闭Kafka Pusher失败, topic: %s, error: %s", topic, err.Error())
 		}
 	}
+}
+
+// PushRaw 发送已序列化的 JSON 字符串到指定 topic（无 key）。
+// 供事务发件箱（用于 发送红包业务 ）投递器使用：payload 已按 JSON 存库，这里不再二次序列化。
+func (pm *PusherManager) PushRaw(ctx context.Context, topic string, rawJSON string) error {
+	pusher, ok := pm.pushers[topic]
+	if !ok {
+		common.Errorf("Kafka Pusher 未找到, topic: %s", topic)
+		return fmt.Errorf("Kafka Pusher 未找到, topic: %s", topic)
+	}
+	if err := pusher.Push(ctx, rawJSON); err != nil {
+		common.Errorf("Kafka消息发送失败, topic: %s, error: %s", topic, err.Error())
+		return err
+	}
+	return nil
+}
+
+// KPushRaw 发送已序列化的 JSON 字符串到指定 topic（带 key，保证同 key 有序）。
+func (pm *PusherManager) KPushRaw(ctx context.Context, topic, key, rawJSON string) error {
+	pusher, ok := pm.pushers[topic]
+	if !ok {
+		common.Errorf("Kafka Pusher 未找到, topic: %s", topic)
+		return fmt.Errorf("Kafka Pusher 未找到, topic: %s", topic)
+	}
+	if err := pusher.KPush(ctx, key, rawJSON); err != nil {
+		common.Errorf("Kafka消息发送失败, topic: %s, key: %s, error: %s", topic, key, err.Error())
+		return err
+	}
+	return nil
 }

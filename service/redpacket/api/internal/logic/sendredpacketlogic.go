@@ -6,6 +6,7 @@ package logic
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"go-infinitechat/service/redpacket/api/internal/svc"
 	"go-infinitechat/service/redpacket/api/internal/types"
 	"go-infinitechat/service/redpacket/api/internal/types/constants"
+	"go-infinitechat/service/redpacket/model/event_outbox"
 	"go-infinitechat/service/redpacket/model/red_packet"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -64,11 +66,14 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 	}
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包金额分配失败")
 
-	// 开启事务：扣减余额 + 创建红包记录 + 记录余额日志
+	// 构建红包消息（事务前拿到 messageId 与 JSON，事务内只做落库）
+	messageId, msgJSON := l.buildRedPacketMessage(req, redPacketId)
+
+	// 开启事务：扣减余额 + 创建红包记录 + 记录余额日志 + 写发件箱
 	err = txctx.WithTransaction(l.ctx, l.svcCtx.SqlxConn, func(ctx context.Context) error {
 		// 1. 扣减发送者余额
 		deductErr := l.svcCtx.RedPacketService.DeductBalance(ctx, req.SenderId, totalAmountFen)
-		common.ThrowIfWithMsg(deductErr != nil, common.OperationError, "余额不足或扣款失败", err)
+		common.ThrowIfWithMsg(deductErr != nil, common.OperationError, "余额不足或扣款失败", deductErr)
 
 		// 2. 创建红包记录（必须用 InsertTx，go-zero 的 CachedConn.Insert 不读 ctx 里的 tx session，
 		//    否则第 3 步失败回滚时这条主表记录会留下来，变成永不退款的孤儿红包）
@@ -85,10 +90,15 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 			CreatedTime:          now,
 			UpdatedTime:          now,
 		})
-		common.ThrowIfWithMsg(insertErr != nil, common.SystemError, "红包创建失败", err)
+		common.ThrowIfWithMsg(insertErr != nil, common.SystemError, "红包创建失败", insertErr)
 
 		// 3. 记录余额变动日志
 		l.svcCtx.RedPacketService.InsertBalanceLog(ctx, req.SenderId, totalAmountFen, constants.BalanceLogTypeSend, redPacketId)
+
+		// 4. 写事务发件箱：store / push 两条消息事件与红包记录同事务落库，
+		//    由 outbox_dispatcher 异步投递，投递失败可重试（不再在请求路径裸推 Kafka）
+		l.insertOutboxEvents(ctx, req.SessionId, msgJSON)
+
 		return nil
 	})
 	common.ThrowIfWithMsg(err != nil, common.SystemError, "红包发送失败", err)
@@ -96,15 +106,6 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 
 	// 初始化 Redis 红包金额池 + 设置红包过期时间 ZSET
 	l.svcCtx.RedPacketService.InitRedisPool(redPacketId, amounts)
-
-	// 发红包消息到 Kafka (store + push)
-	messageId := l.sendRedPacketMessage(req, redPacketId)
-
-	// 发送红包创建事件到 Kafka（用于过期处理注册），逻辑待修正
-	// _ = l.svcCtx.KafkaPusherManager.Push(l.ctx, constants.TopicRedpacketCreation, map[string]interface{}{
-	// 	"redPackageId": redPacketId,
-	// 	"createdTime":  time.Now().UnixMilli(),
-	// })
 
 	logx.Infof("红包发送成功，红包ID: %d, 消息ID: %d, 发送者: %d, 金额: %d, 数量: %d", redPacketId, messageId, senderId, totalAmountFen, totalCount)
 
@@ -115,13 +116,9 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 	}, nil
 }
 
-// 发送红包消息到 Kafka
-func (l *SendRedPacketLogic) sendRedPacketMessage(req *types.RedPacketSendRequest, redPacketId int64) int64 {
-	if l.svcCtx.KafkaPusherManager == nil {
-		return 0
-	}
-
-	// 构建 MessageRequest
+// buildRedPacketMessage 构建红包消息并序列化为 JSON（发件箱 payload）。
+// 返回 (messageId, payloadJSON)。
+func (l *SendRedPacketLogic) buildRedPacketMessage(req *types.RedPacketSendRequest, redPacketId int64) (int64, string) {
 	messageId := utils.NextInt()
 	now := time.Now()
 	msgReq := &dto.MessageRequest{
@@ -149,20 +146,37 @@ func (l *SendRedPacketLogic) sendRedPacketMessage(req *types.RedPacketSendReques
 	common.ThrowIf(req.SessionType == constants.SessionTypeSignal && msgReq.ReceiverId == nil, common.SignalTypeError)
 	common.ThrowIf(req.SessionType == constants.SessionTypeGroup && msgReq.ReceiverId != nil, common.GroupTypeError)
 
-	// 消息持久化（store-topic，无 key，offline 服务消费落库）
-	// 失败只记日志不抛错：此时事务已提交、余额已扣除，抛错会让客户端重试造成重复扣款；
-	// 可靠投递待事务性发件箱（Outbox）改造后解决
-	if err := l.svcCtx.KafkaPusherManager.Push(l.ctx, commonconsts.KafkaMessageTopicStore, msgReq); err != nil {
-		common.Errorf("[RedPacket] 红包消息落库事件发送失败, messageId=%d, redPacketId=%d, err=%s", messageId, redPacketId, err.Error())
-	}
+	msgJSON, err := json.Marshal(msgReq)
+	common.ThrowIfWithMsg(err != nil, common.MarshalFailedError, "红包消息序列化失败", err)
+	return messageId, string(msgJSON)
+}
 
-	// 消息推送（message-topic，用 sessionId 作为 key 保证同会话有序，realtime 服务消费推送）
-	if err := l.svcCtx.KafkaPusherManager.KPush(l.ctx, commonconsts.KafkaMessageTopicPush, strconv.FormatInt(req.SessionId, 10), msgReq); err != nil {
-		common.Errorf("[RedPacket] 红包消息推送事件发送失败, messageId=%d, redPacketId=%d, err=%s", messageId, redPacketId, err.Error())
-	}
+// insertOutboxEvents 在事务内把 store / push 两条消息事件写入发件箱。
+// 必须调用在 txctx.WithTransaction 内，复用事务 session，与红包记录原子提交。
+func (l *SendRedPacketLogic) insertOutboxEvents(ctx context.Context, sessionId int64, msgJSON string) {
+	now := time.Now()
 
-	logx.Infof("红包消息已入队，红包ID: %d, 消息ID: %d", redPacketId, messageId)
-	return messageId
+	// store 事件：无 key，offline 服务消费落库（消息持久化）
+	_, err := l.svcCtx.EventOutboxModel.InsertTx(ctx, &event_outbox.EventOutbox{
+		Topic:       commonconsts.KafkaMessageTopicStore,
+		MessageKey:  "",
+		Payload:     msgJSON,
+		Status:      event_outbox.StatusPending,
+		CreatedTime: now,
+		UpdatedTime: now,
+	})
+	common.ThrowIfWithMsg(err != nil, common.MysqlError, "写 store 发件箱失败", err)
+
+	// push 事件：sessionId 做 key 保证同会话有序，realtime 服务消费推送
+	_, err = l.svcCtx.EventOutboxModel.InsertTx(ctx, &event_outbox.EventOutbox{
+		Topic:       commonconsts.KafkaMessageTopicPush,
+		MessageKey:  strconv.FormatInt(sessionId, 10),
+		Payload:     msgJSON,
+		Status:      event_outbox.StatusPending,
+		CreatedTime: now,
+		UpdatedTime: now,
+	})
+	common.ThrowIfWithMsg(err != nil, common.MysqlError, "写 push 发件箱失败", err)
 }
 
 func (l *SendRedPacketLogic) validateSendRequest(req *types.RedPacketSendRequest) {
