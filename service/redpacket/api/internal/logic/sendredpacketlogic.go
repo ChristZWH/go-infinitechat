@@ -56,6 +56,7 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 
 	redPacketId := utils.NextInt()
 	now := time.Now()
+	expireTimestamp := now.UnixMilli() + constants.ExpireTimeMs // 发送时刻定死过期时间，重试不重算
 
 	// 先红包金额预分配 ——> 再开事务（分配是纯 CPU 计算，先做完再动钱）
 	var amounts []int64
@@ -68,7 +69,7 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 
 	// 构建红包消息 + 建池事件（事务前拿到 messageId / msgJSON / poolInitPayload）
 	messageId, msgJSON := l.buildRedPacketMessage(req, redPacketId)
-	poolInitPayload := l.buildPoolInitPayload(redPacketId, amounts)
+	poolInitPayload := l.buildPoolInitPayload(redPacketId, amounts, expireTimestamp)
 
 	// 开启事务：扣减余额 + 创建红包记录 + 记录余额日志 + 写发件箱
 	err = txctx.WithTransaction(l.ctx, l.svcCtx.SqlxConn, func(ctx context.Context) error {
@@ -108,7 +109,7 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 	// 同步建池（快速路径，幂等）：让红包立即可领。
 	// 失败不回 500、也不在这里补写事件——pool-init 事件已在事务里落库（与扣款原子），
 	// 投递器会异步重建，客户端不会重复扣款，红包也不会领不了/退不了。
-	if err := l.svcCtx.RedPacketService.InitRedisPool(l.ctx, redPacketId, amounts); err != nil {
+	if err := l.svcCtx.RedPacketService.InitRedisPool(l.ctx, redPacketId, amounts, expireTimestamp); err != nil {
 		logx.Errorf("同步建池失败，等待投递器异步重建: redPacketId=%d, err=%v", redPacketId, err)
 	}
 
@@ -200,10 +201,12 @@ func (l *SendRedPacketLogic) insertOutboxEvents(ctx context.Context, sessionId, 
 }
 
 // buildPoolInitPayload 序列化「重建金额池」事件的 payload。
-func (l *SendRedPacketLogic) buildPoolInitPayload(redPacketId int64, amounts []int64) string {
+// 带 expireTimestamp：投递器重建时用发送时刻的原始过期时间，不漂移。
+func (l *SendRedPacketLogic) buildPoolInitPayload(redPacketId int64, amounts []int64, expireTimestamp int64) string {
 	payload, err := json.Marshal(map[string]interface{}{
-		"redPacketId": redPacketId,
-		"amounts":     amounts,
+		"redPacketId":     redPacketId,
+		"amounts":         amounts,
+		"expireTimestamp": expireTimestamp,
 	})
 	common.ThrowIfWithMsg(err != nil, common.MarshalFailedError, "序列化红包池初始化事件失败", err)
 	return string(payload)

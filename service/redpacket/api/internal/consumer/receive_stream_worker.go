@@ -14,7 +14,7 @@ import (
 	"github.com/zeromicro/go-zero/core/stores/redis"
 )
 
-// StartReceiveStreamWorker 启动领取事件发件箱的消费者。
+// StartReceiveStreamWorker 启动 抢包 事件发件箱的消费者。
 //
 // 抢包 Lua 在 LPOP + HSET 的同时，把领取事件 XADD 进 Redis Stream（原子）。
 // 这里 XREADGROUP 消费 → SettleReceive 入账 → XACK。
@@ -77,7 +77,22 @@ func runReceiveStreamWorker(svcCtx *svc.ServiceContext) {
 func processStreams(svcCtx *svc.ServiceContext, rds *redis.Redis, stream, group string, streams []red.XStream) {
 	for _, s := range streams {
 		for _, msg := range s.Messages {
-			if err := handleReceiveEvent(svcCtx, msg.Values); err != nil {
+			userId := streamValueToInt64(msg.Values["userId"])
+			redPacketId := streamValueToInt64(msg.Values["redPacketId"])
+			amount := streamValueToInt64(msg.Values["amount"])
+
+			// 防御损坏事件：关键字段非法（<=0）不入账，直接 XACK 跳过，避免 0 元入账污染账本。
+			// 注意：这里不做 DECR pending——抢包 Lua 只在 LPOP 成功时 INCR，而 LPOP 的金额恒 >=1，
+			// 能走到这个分支的非法事件只能是外部注入（无对应 INCR），DECR 反而会把计数打到负数。
+			if userId <= 0 || redPacketId <= 0 || amount <= 0 {
+				logx.Errorf("领取事件字段非法，XACK 跳过: id=%s userId=%d redPacketId=%d amount=%d", msg.ID, userId, redPacketId, amount)
+				if _, err := rds.XAck(stream, group, msg.ID); err != nil {
+					logx.Errorf("XACK 失败, id=%s: %v", msg.ID, err)
+				}
+				continue
+			}
+
+			if err := handleReceiveEvent(svcCtx, msg.Values, msg.ID); err != nil {
 				logx.Errorf("领取事件入账失败, id=%s: %v", msg.ID, err)
 				continue
 			}
@@ -85,7 +100,7 @@ func processStreams(svcCtx *svc.ServiceContext, rds *redis.Redis, stream, group 
 			// 领完事件：本次领取恰好清空金额池（completed=1），推 Kafka 让 CompletedConsumer 落库标记。
 			// 也放进 pending 重试闭环：推送失败不 XACK，下轮重读（SettleReceive 幂等跳过，再推一次）。
 			if streamValueToInt64(msg.Values["completed"]) == 1 {
-				if err := pushCompletedEvent(svcCtx, streamValueToInt64(msg.Values["redPacketId"])); err != nil {
+				if err := pushCompletedEvent(svcCtx, redPacketId); err != nil {
 					logx.Errorf("领完事件推送失败, id=%s: %v", msg.ID, err)
 					continue
 				}
@@ -108,14 +123,15 @@ func pushCompletedEvent(svcCtx *svc.ServiceContext, redPacketId int64) error {
 	})
 }
 
-func handleReceiveEvent(svcCtx *svc.ServiceContext, values map[string]interface{}) error {
-	// 领取入账：幂等检查 + 事务（插领取记录 + 加余额 + 写余额流水）
+func handleReceiveEvent(svcCtx *svc.ServiceContext, values map[string]interface{}, eventID string) error {
+	// 领取入账：幂等检查 + 事务（插领取记录 + 加余额 + 写余额流水）；DECR pending 计数在 SettleReceive 内部完成
 	return svcCtx.RedPacketService.SettleReceive(
 		context.Background(),
 		streamValueToInt64(values["userId"]),
 		streamValueToInt64(values["redPacketId"]),
 		streamValueToInt64(values["amount"]),
 		streamValueToInt64(values["receivedTime"]),
+		eventID,
 	)
 }
 

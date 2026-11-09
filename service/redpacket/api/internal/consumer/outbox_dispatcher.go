@@ -8,6 +8,7 @@ import (
 
 	"go-infinitechat/common/kafka"
 	"go-infinitechat/service/redpacket/api/internal/svc"
+	"go-infinitechat/service/redpacket/api/internal/types/constants"
 	"go-infinitechat/service/redpacket/model/event_outbox"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -93,11 +94,26 @@ func pushKafkaEvent(pusher *kafka.PusherManager, ev *event_outbox.EventOutbox) e
 // 这是 InitRedisPool 同步失败后的异步补偿，保证钱已扣的红包最终能建出金额池。
 func handlePoolInitEvent(svcCtx *svc.ServiceContext, payload string) error {
 	var p struct {
-		RedPacketId int64   `json:"redPacketId"`
-		Amounts     []int64 `json:"amounts"`
+		RedPacketId     int64   `json:"redPacketId"`
+		Amounts         []int64 `json:"amounts"`
+		ExpireTimestamp int64   `json:"expireTimestamp"`
 	}
 	if err := json.Unmarshal([]byte(payload), &p); err != nil {
 		return err
 	}
-	return svcCtx.RedPacketService.InitRedisPool(context.Background(), p.RedPacketId, p.Amounts)
+
+	// 防「复活」：红包已领完/已过期时，Redis 池已被 CleanRedisCache 清掉（含 records、ZSet member）。
+	// 若此时重建满额池 + ZADD NX 重新登记，会让已终态的红包被再次抢 → 凭空多出钱（双花）。
+	// 先查 DB 状态，非「未领完」一律跳过建池（return nil 让事件标 published）。
+	rp, err := svcCtx.RedPacketModel.FindOne(context.Background(), p.RedPacketId)
+	if err != nil {
+		return err // 查不到 / DB 异常 → 保留 pending 重试
+	}
+	if rp.Status != constants.StatusNotCompleted {
+		logx.Infof("红包非 未领完 状态，跳过建池: redPacketId=%d, status=%d", p.RedPacketId, rp.Status)
+		return nil
+	}
+
+	// 用发送时刻的原始 expireTimestamp，ZADD NX 不覆盖，避免停摆重启后红包被"续命"
+	return svcCtx.RedPacketService.InitRedisPool(context.Background(), p.RedPacketId, p.Amounts, p.ExpireTimestamp)
 }
