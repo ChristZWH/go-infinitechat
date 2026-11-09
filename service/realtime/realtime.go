@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"go-infinitechat/common/common"
+	etcdreg "go-infinitechat/common/etcd"
 	"go-infinitechat/common/model/constants"
 	"go-infinitechat/service/realtime/internal/config"
 	"go-infinitechat/service/realtime/internal/consumer"
@@ -30,15 +31,30 @@ var configFile = flag.String("f", "etc/realtime.yaml", "the config file")
 //  3. Message Consumer —— 消费 message-topoc，推送消息给在线用户
 //  4. Notification Consumer —— 消费 system-notification-topic，推送系统消息
 func main() {
+	// 1. 加载配置
 	flag.Parse()
-
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
 
-	// 初始化服务上下文：Redis、Kafka、Pushers、Etcd 注册
+	// 2. 创建服务上下文（Redis/Kafka Pusher/UserRPC 依赖装配）
 	svcCtx := svc.NewServiceContext(c)
 
-	// 1. REST API 服务（端口8102）
+	// 3. 注册到 etcd（UserService 通过它发现本 WS 节点，给客户端分配连接地址）
+	if c.Etcd.RegisterKey != "" {
+		reg, err := etcdreg.RegisterHTTPService(etcdreg.RegisterOptions{
+			Endpoints: c.Etcd.Endpoints,
+			Key:       c.Etcd.RegisterKey,                                      // 前缀，最终 key = {RegisterKey}/{addr}
+			Addr:      fmt.Sprintf("%s:%d", c.Etcd.PublicIP, c.WebSocket.Port), // 本节点对外可访达的 WS 地址
+			TTL:       30,
+		})
+		if err != nil {
+			common.Errorf("etcd 注册失败: %s", err.Error())
+		} else if reg != nil {
+			defer reg.Close() // 进程退出时撤销租约主动下线
+		}
+	}
+
+	// 4. 创建 REST API 服务（端口8102，健康检查）
 	server := rest.MustNewServer(c.RestConf)
 	defer server.Stop()
 	server.AddRoute(rest.Route{
@@ -50,17 +66,17 @@ func main() {
 		},
 	})
 
-	// 2. WebSocket 服务在独立端口（默认9101）监听，与 REST 服务并行运行
+	// 5. 启动 WebSocket 服务（端口9101，客户端长连接）
 	// StartWebSocket 内部是阻塞的 ListenAndServe，所以放到独立 goroutine
 	go websocket.StartWebSocket(svcCtx)
 
-	// 3. 启动 Kafka Consumers
+	// 6. 启动 Kafka 消费者（message-topic 推送 / system-notification-topic 通知）
 	if len(c.Kafka.Brokers) > 0 {
 		go startMessageConsumer(c, svcCtx)
 		go startNotificationConsumer(c, svcCtx)
 	}
 
-	// 打印启动信息
+	// 7. 启动 HTTP 服务（阻塞）
 	fmt.Printf("RealTimeService 启动完成\n")
 	fmt.Printf("  REST API:       %s:%d/health\n", c.Host, c.Port)
 	fmt.Printf("  WebSocket:      %s:%d%s\n", c.Host, c.WebSocket.Port, c.WebSocket.Path)

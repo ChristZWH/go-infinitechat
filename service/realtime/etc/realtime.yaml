@@ -20,7 +20,7 @@ Kafka:
 Etcd:
   Endpoints:
     - localhost:2379
-  Prefix: /services/realtimeservice
+  RegisterKey: /services/realtimeservice
   PublicIP: 127.0.0.1
 
 # User RPC 客户端配置

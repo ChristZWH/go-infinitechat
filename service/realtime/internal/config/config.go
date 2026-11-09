@@ -42,8 +42,8 @@ type Config struct {
 	Etcd struct {
 		// Etcd 集群地址列表
 		Endpoints []string
-		// 服务注册的 key 前缀
-		Prefix string
+		// 服务注册的 key 前缀（最终写入 {RegisterKey}/{addr}，与其它服务的 RegisterKey 语义一致）
+		RegisterKey string
 		// 当前节点的公网 IP，写入 etcd 和 Redis 时用，让其他服务和客户端能通过此 IP 连接过来
 		PublicIP string
 	}
