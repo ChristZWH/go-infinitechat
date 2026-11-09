@@ -26,12 +26,12 @@ import (
 var configFile = flag.String("f", "etc/user-api.yaml", "the config file")
 
 func main() {
+	// 1. 加载配置
 	flag.Parse()
-
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
 
-	// 统一错误响应
+	// 2. 注册全局响应处理器（错误/成功统一成 {code, message} 格式）
 	httpx.SetErrorHandlerCtx(func(ctx context.Context, err error) (int, any) {
 		var e common.ErrorCode
 		if !errors.As(err, &e) {
@@ -52,17 +52,19 @@ func main() {
 		return utils.Success(data)
 	})
 
+	// 3. 创建 REST server 并注册中间件
 	server := rest.MustNewServer(c.RestConf)
-	// 注册中间件：Recover 在最外层，保证后续中间件里的 panic 也能被兜住；
-	// Identity 负责把网关注入的 X-User-Id 解析进 context，供 logic 使用。
-	server.Use(middleware.RecoverMiddleWare)
-	server.Use(middleware.IdentityMiddleware)
+	server.Use(middleware.RecoverMiddleWare)  // 兜住 Throw 的 panic 转成统一响应
+	server.Use(middleware.IdentityMiddleware) // 解析网关注入的 X-User-Id，供 logic 读取
 	defer server.Stop()
 
+	// 4. 创建服务上下文（Redis/MySQL/RPC 依赖装配）
 	ctx := svc.NewServiceContext(c)
+
+	// 5. 注册路由
 	handler.RegisterHandlers(server, ctx)
 
-	// 注册到 etcd（网关服务发现）
+	// 6. 注册到 etcd（网关服务发现）
 	if c.Etcd.RegisterKey != "" {
 		host := c.Etcd.PublicIp
 		if host == "" {
@@ -80,6 +82,7 @@ func main() {
 		}
 	}
 
+	// 7. 启动 HTTP 服务（阻塞）
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
 	server.Start()
 }
