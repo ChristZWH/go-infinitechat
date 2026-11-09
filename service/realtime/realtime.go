@@ -6,6 +6,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 
 	"go-infinitechat/common/common"
 	"go-infinitechat/common/model/constants"
@@ -40,6 +41,14 @@ func main() {
 	// 1. REST API 服务（端口8102）
 	server := rest.MustNewServer(c.RestConf)
 	defer server.Stop()
+	server.AddRoute(rest.Route{
+		Method: http.MethodGet,
+		Path:   "/health",
+		Handler: func(w http.ResponseWriter, r *http.Request) {
+			// 顺手 Ping 一下 Redis/Kafka，作为存活/就绪探针
+			w.Write([]byte("ok"))
+		},
+	})
 
 	// 2. WebSocket 服务在独立端口（默认9101）监听，与 REST 服务并行运行
 	// StartWebSocket 内部是阻塞的 ListenAndServe，所以放到独立 goroutine

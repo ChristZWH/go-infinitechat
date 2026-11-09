@@ -118,10 +118,10 @@ func main() {
 func startMessageStoreConsumer(c config.Config, svcCtx *svc.ServiceContext) {
 	msgConsumer := consumer.NewMessageStoreConsumer(svcCtx.MessageModel)
 	q := kq.MustNewQueue(kq.KqConf{
-		Brokers:    c.Kafka.Brokers,
-		Group:      c.Kafka.MessageStoreConsumerGroup,
-		Topic:      constants.KafkaMessageTopicStore, // 消费store-topic，持久化到MySQL中
-		Offset:     "last",
+		Brokers: c.Kafka.Brokers,
+		Group:   c.Kafka.MessageStoreConsumerGroup,
+		Topic:   constants.KafkaMessageTopicStore, // 消费store-topic，持久化到MySQL中
+		Offset:  "last",
 		// 关键：kq 的 ForceCommit 默认为 true，即 handler 返回 error 也会提交 offset。
 		// 显式关掉，落库失败时至少不会立刻把位点推过去（配合 consumer 内的有限重试）。
 		ForceCommit: false,
@@ -139,10 +139,10 @@ func startNotificationStoreConsumer(c config.Config, svcCtx *svc.ServiceContext)
 	// kq.MustNewQueue 第二个参数是同一个 handler 实例——不能用 NewMessageStoreConsumer(...) 每次建新的
 	notifConsumer := consumer.NewNotificationStoreConsumer(svcCtx.SystemNotificationModel)
 	q := kq.MustNewQueue(kq.KqConf{
-		Brokers:    c.Kafka.Brokers,
-		Group:      c.Kafka.NotificationStoreConsumerGroup,
-		Topic:      constants.KafkaStoreNotificationTopic, // 消费 store-notification-topic，持久化到MySQL 中
-		Offset:     "last",
+		Brokers: c.Kafka.Brokers,
+		Group:   c.Kafka.NotificationStoreConsumerGroup,
+		Topic:   constants.KafkaStoreNotificationTopic, // 消费 store-notification-topic，持久化到MySQL 中
+		Offset:  "last",
 		// 同 MessageStoreConsumer：关掉 ForceCommit，避免写库失败也推进位点
 		ForceCommit: false,
 		Consumers:   3,

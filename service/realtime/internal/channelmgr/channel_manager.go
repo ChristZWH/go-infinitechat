@@ -158,6 +158,7 @@ func (cm *ChannelManger) GetUserIdByConn(conn *ClientConn) string {
 // 用户下线：根据连接移除双向映射
 // 返回被移除的 userId（用于后续清理 Redis 在线状态）
 // 返回空字符串表示该连接已经被移除过了（如被新连接顶掉，幂等安全）
+// 触发场景：客户端主动关闭、网络拔线、读超时（60 秒没心跳）、写失败被 Close 等
 func (cm *ChannelManger) RemoveByConn(conn *ClientConn) string {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -171,7 +172,7 @@ func (cm *ChannelManger) RemoveByConn(conn *ClientConn) string {
 	return userId
 }
 
-// 根据 userId 移除双向映射（主动踢人场景使用）
+// 根据 userId 移除双向映射（服务端主动踢人场景使用）
 func (cm *ChannelManger) RemoveByUserId(userId string) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()

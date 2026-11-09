@@ -130,7 +130,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, svcCtx *svc.Service
 	clientConn.SetReadDeadline(time.Now().Add(readTimeout))
 	// 收到 WebSocket 协议层的 Pong 帧时，重置读超时
 	// （注意：这里的 WebSocket 协议层的 Pong，不是我们应用层的 "pong" 文本）
-	// 这里协议的 pong 并没有使用上
+	// 这里协议的 pong 并没有使用上，因为浏览器 JS 的WebSocket 不对外暴露 ping 发送接口
 	clientConn.SetPongHandler(func(appData string) error {
 		clientConn.SetReadDeadline(time.Now().Add(readTimeout))
 		return nil
