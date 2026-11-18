@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"go-infinitechat/common/common"
@@ -28,6 +29,10 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
+// idempotencyPending 幂等键的「处理中」占位值：
+// SETNX 抢占时先写入 pending，发送成功后会被结果 {redPacketId}:{messageId} 覆盖。
+const idempotencyPending = "pending"
+
 type SendRedPacketLogic struct {
 	logx.Logger
 	ctx    context.Context
@@ -42,12 +47,68 @@ func NewSendRedPacketLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Sen
 	}
 }
 
-// 发送红包
+// 发送红包。clientMessageId 非空时走幂等：重复提交直接返回上次结果。
 func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (resp *types.RedPacketSendVO, err error) {
 	// 发送者只能是"我"，以网关登录为准
 	identity.OverrideIfPresent(l.ctx, &req.SenderId)
 	l.validateSendRequest(req)
 
+	// clientMessageId 为必传（validate:required），直接走幂等：重复提交返回上次结果
+	return l.sendWithIdempotency(req)
+}
+
+// sendWithIdempotency 用 Redis SETNX 去重：第一次提交抢占成功，重复提交返回上次结果。
+// 失败（panic 或 error）时删除幂等键，允许客户端重试——不会把"失败"误当成"已提交"。
+func (l *SendRedPacketLogic) sendWithIdempotency(req *types.RedPacketSendRequest) (*types.RedPacketSendVO, error) {
+	dedupKey := constants.PreventDuplicatePrefix + strconv.FormatInt(req.SenderId, 10) + ":" + req.ClientMessageId
+	ttlSeconds := int(constants.RedisCacheExpireHours * 3600)
+
+	// SETNX + TTL：成功=第一次提交；失败=重复提交
+	ok, err := l.svcCtx.Redis.SetnxEx(dedupKey, idempotencyPending, ttlSeconds)
+	common.ThrowIfWithMsg(err != nil, common.RedisError, "幂等键写入失败", err)
+	if !ok {
+		return l.replayIdempotentResult(dedupKey)
+	}
+
+	// 失败清理：panic（Throw）或 error 时删掉幂等键，允许重试
+	succeeded := false
+	defer func() {
+		if !succeeded {
+			_, _ = l.svcCtx.Redis.Del(dedupKey)
+		}
+	}()
+
+	resp, err := l.doSendRedPacket(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// 成功：把结果写进幂等键（覆盖 pending 占位），TTL 24h
+	if err := l.svcCtx.Redis.Setex(dedupKey, fmt.Sprintf("%d:%d", resp.RedPacketId, resp.MessageId), ttlSeconds); err != nil {
+		// 缓存写失败不影响本次已成功的发送；重试拿到 "处理中" 属可接受边缘
+		logx.Errorf("幂等结果写入失败, redPacketId=%d: %v", resp.RedPacketId, err)
+	}
+	succeeded = true
+	return resp, nil
+}
+
+// replayIdempotentResult 重复提交时返回上次结果；上次还在处理中（pending）则提示稍后重试。
+func (l *SendRedPacketLogic) replayIdempotentResult(dedupKey string) (*types.RedPacketSendVO, error) {
+	val, err := l.svcCtx.Redis.Get(dedupKey)
+	common.ThrowIfWithMsg(err != nil, common.RedisError, "读取幂等结果失败", err)
+	common.ThrowIfWithMsg(val == "" || val == idempotencyPending, common.OperationError, "请求处理中，请稍后重试")
+
+	parts := strings.SplitN(val, ":", 2)
+	if len(parts) != 2 {
+		common.ThrowWithMsg(common.SystemError, "幂等结果格式异常")
+	}
+	redPacketId, _ := strconv.ParseInt(parts[0], 10, 64)
+	clientMessageId, _ := strconv.ParseInt(parts[1], 10, 64)
+	return &types.RedPacketSendVO{RedPacketId: redPacketId, MessageId: clientMessageId}, nil
+}
+
+// doSendRedPacket 真正的发送逻辑：金额分配 + 事务（扣款/红包/流水/发件箱）+ 同步建池。
+func (l *SendRedPacketLogic) doSendRedPacket(req *types.RedPacketSendRequest) (*types.RedPacketSendVO, error) {
 	// 业务数据准备
 	senderId := req.SenderId
 	totalAmountFen, _ := service.YuanToFen(req.Body.TotalAmount)
@@ -59,7 +120,10 @@ func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (res
 	expireTimestamp := now.UnixMilli() + constants.ExpireTimeMs // 发送时刻定死过期时间，重试不重算
 
 	// 先红包金额预分配 ——> 再开事务（分配是纯 CPU 计算，先做完再动钱）
-	var amounts []int64
+	var (
+		amounts []int64
+		err     error
+	)
 	if redPacketType == constants.TypeNormal {
 		amounts, err = algorithm.AllocateNormalRedPacket(totalAmountFen, int(totalCount))
 	} else {
@@ -214,6 +278,7 @@ func (l *SendRedPacketLogic) buildPoolInitPayload(redPacketId int64, amounts []i
 
 func (l *SendRedPacketLogic) validateSendRequest(req *types.RedPacketSendRequest) {
 	common.ThrowIfWithMsg(req.Body.TotalCount <= 0, common.ParamsError, "红包数量必须大于0")
+	common.ThrowIfWithMsg(req.Body.TotalCount > constants.MaxTotalCount, common.ParamsError, fmt.Sprintf("单个红包份数不能超过%d", constants.MaxTotalCount))
 	totalAmountFen, err := service.YuanToFen(req.Body.TotalAmount)
 	common.ThrowIfWithMsg(err != nil, common.ParamsError, "红包金额格式错误")
 	common.ThrowIfWithMsg(totalAmountFen <= 0, common.ParamsError, "红包金额必须大于0")

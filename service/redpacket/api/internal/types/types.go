@@ -67,7 +67,7 @@ type RedPacketSendRequest struct {
 	SessionType     int32                    `json:"sessionType" validate:"oneof=0 1" msg:"会话类型错误"`
 	ReceiverId      *int64                   `json:"receiverId,optional"`
 	Type            int32                    `json:"type,optional"`
-	ClientMessageId string                   `json:"clientMessageId,optional" `
+	ClientMessageId string                   `json:"clientMessageId" validate:"required" msg:"客户端消息ID不能为空"`
 	Body            RedPacketSendRequestBody `json:"body" validate:"required"`
 }
 

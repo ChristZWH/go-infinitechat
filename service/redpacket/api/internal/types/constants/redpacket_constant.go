@@ -34,6 +34,9 @@ const (
 	//单个红包最大金额（单位：元）
 	MaxSingleAmountYuan = 200
 
+	//单次红包最大份数：防止大份数导致 InitRedisPoolLua 的 ARGV 爆炸 / Redis 长时间阻塞
+	MaxTotalCount = 1000
+
 	//元转分的乘数（1元 = 100分）
 	YuanToFenMultiplier = 100
 )
