@@ -30,10 +30,10 @@ func newTestModel(t *testing.T) (sqlx.SqlConn, sqlmock.Sqlmock, *customRedPacket
 	return conn, mock, m
 }
 
-// MarkExpiredIfNotCompleted 是"过期退款只退一次"的原子保证：
+// MarkStatusIfNotCompleted 是"过期退款只退一次"的原子保证：
 // 条件更新 status: 0 → 2，RowsAffected==1 才继续退款。
 // 并发/重投时第二次 RowsAffected==0，调用方据此跳过退款。
-func TestMarkExpiredIfNotCompleted(t *testing.T) {
+func TestMarkStatusIfNotCompleted(t *testing.T) {
 	const expiredStatus, notCompletedStatus = 2, 0
 
 	t.Run("抢到状态迁移", func(t *testing.T) {
@@ -46,7 +46,7 @@ func TestMarkExpiredIfNotCompleted(t *testing.T) {
 		mock.ExpectCommit()
 
 		err := txctx.WithTransaction(context.Background(), conn, func(ctx context.Context) error {
-			affected, err := m.MarkExpiredIfNotCompleted(ctx, 1, expiredStatus, notCompletedStatus)
+			affected, err := m.MarkStatusIfNotCompleted(ctx, 1, expiredStatus, notCompletedStatus)
 			if err != nil {
 				return err
 			}
@@ -73,7 +73,7 @@ func TestMarkExpiredIfNotCompleted(t *testing.T) {
 		mock.ExpectCommit()
 
 		err := txctx.WithTransaction(context.Background(), conn, func(ctx context.Context) error {
-			affected, err := m.MarkExpiredIfNotCompleted(ctx, 1, expiredStatus, notCompletedStatus)
+			affected, err := m.MarkStatusIfNotCompleted(ctx, 1, expiredStatus, notCompletedStatus)
 			if err != nil {
 				return err
 			}
@@ -101,7 +101,7 @@ func TestMarkExpiredIfNotCompleted(t *testing.T) {
 		mock.ExpectRollback()
 
 		err := txctx.WithTransaction(context.Background(), conn, func(ctx context.Context) error {
-			_, err := m.MarkExpiredIfNotCompleted(ctx, 1, expiredStatus, notCompletedStatus)
+			_, err := m.MarkStatusIfNotCompleted(ctx, 1, expiredStatus, notCompletedStatus)
 			return err
 		})
 		if err == nil {

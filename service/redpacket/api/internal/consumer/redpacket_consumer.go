@@ -3,17 +3,19 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strconv"
+
 	"go-infinitechat/common/common"
 	"go-infinitechat/common/model/txctx"
 	"go-infinitechat/service/redpacket/api/internal/config"
 	"go-infinitechat/service/redpacket/api/internal/service"
 	"go-infinitechat/service/redpacket/api/internal/svc"
 	"go-infinitechat/service/redpacket/api/internal/types/constants"
-	"strconv"
-	"time"
 
 	"github.com/zeromicro/go-queue/kq"
 	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 // StartConsumer 启动红包 Kafka 消费者。
@@ -78,21 +80,18 @@ func (c *CompletedConsumer) Consume(ctx context.Context, key, value string) erro
 
 	redPacketId := jsonToInt64(event["redPacketId"])
 
-	// 1. 更新红包状态
-	rp, err := c.rpSvc.RedPacketModel.FindOne(ctx, redPacketId)
+	// 条件更新：仅当 status=未领完 时才置为「已领完」。
+	// 若红包已被 ExpirationConsumer 标记为已过期（status=2），RowsAffected=0，不会把过期覆盖回已领完。
+	affected, err := c.rpSvc.RedPacketModel.MarkStatusIfNotCompleted(ctx, redPacketId, constants.StatusCompleted, constants.StatusNotCompleted)
 	if err != nil {
-		logx.Infof("红包不存在，红包ID: %d", redPacketId)
 		return err
 	}
-	rp.Status = constants.StatusCompleted
-	rp.UpdatedTime = time.Now()
-	// 单条 SQL 天生原子，不用添加事务
-	err = c.rpSvc.RedPacketModel.Update(ctx, rp)
-	if err != nil {
-		return err
+	if affected == 0 {
+		logx.Infof("红包状态非未领完，跳过。红包ID: %d", redPacketId)
+		return nil
 	}
 
-	// 2. 清理 Redis 缓存
+	// 清理 Redis 缓存
 	c.rpSvc.CleanRedisCache(redPacketId)
 
 	logx.Infof("红包已领取完，清理完成。红包ID: %d", redPacketId)
@@ -119,6 +118,11 @@ func (c *ExpirationConsumer) Consume(ctx context.Context, key, value string) err
 	// 1. 查询红包信息
 	rp, err := c.rpSvc.RedPacketModel.FindOne(ctx, redPacketId)
 	if err != nil {
+		// ErrNotFound 是永久条件，跳过不重试（否则毒消息永久重试）
+		if errors.Is(err, sqlx.ErrNotFound) {
+			logx.Infof("红包不存在，跳过。红包ID: %d", redPacketId)
+			return nil
+		}
 		return err
 	}
 	if rp.Status == constants.StatusExpired {
@@ -139,7 +143,7 @@ func (c *ExpirationConsumer) Consume(ctx context.Context, key, value string) err
 	err = txctx.WithTransaction(ctx, c.rpSvc.SqlConn, func(ctx context.Context) error {
 		// 3. 先原子抢占「未领完 → 已过期」这一状态迁移，抢到的那一次才退款。
 		//    只 UPDATE 不先查状态：Kafka 重投或并发消费时 RowsAffected 为 0，钱只会退一次。
-		affected, updErr := c.rpSvc.RedPacketModel.MarkExpiredIfNotCompleted(ctx, redPacketId, constants.StatusExpired, constants.StatusNotCompleted)
+		affected, updErr := c.rpSvc.RedPacketModel.MarkStatusIfNotCompleted(ctx, redPacketId, constants.StatusExpired, constants.StatusNotCompleted)
 		common.ThrowIfWithMsg(updErr != nil, common.OperationError, "更新红包状态失败Consume-WithTransaction", updErr)
 		if affected == 0 {
 			logx.Infof("红包已被其它消费者处理，跳过退款。红包ID: %d", redPacketId)
@@ -163,6 +167,7 @@ func (c *ExpirationConsumer) Consume(ctx context.Context, key, value string) err
 	// 5. 清理缓存
 
 	c.rpSvc.CleanRedisCache(redPacketId)
+	c.rpSvc.RedPacketModel.DelCache(ctx, redPacketId)
 	logx.Infof("红包过期处理完成。红包ID: %d", redPacketId)
 	return nil
 }

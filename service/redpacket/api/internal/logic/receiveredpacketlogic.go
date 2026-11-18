@@ -53,8 +53,8 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 		// 获取具体领取到的金额
 		resp.Amount = l.svcCtx.RedPacketService.GetReceivedAmount(req.RedPacketId, req.UserId)
 		resp.Message = "您已经领取过该红包了"
-		// "此分支 Status 仅为占位，客户端以 Message 为准"—— 毕竟重复领取是低频路径，为它多查一次库不值
-		resp.Status = constants.StatusNotCompleted
+		// 用开头查过的 rp 的真实状态，不再是占位值
+		resp.Status = int(rp.Status)
 		return resp, nil
 	}
 	// 已过期 -2

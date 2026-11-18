@@ -51,6 +51,16 @@ func (m *customRedPacketReceiveModel) FindByRedPacketId(ctx context.Context, red
 
 // 分页 每次只有查询一页 limit
 func (m *customRedPacketReceiveModel) FindPageByRedPacketId(ctx context.Context, redPacketId int64, pageNum, pageSize int) ([]*RedPacketReceive, error) {
+	// 分页参数防御：pageNum<=0 或 pageSize 非法会产生负 offset / 超大 limit，先 clamp
+	if pageNum <= 0 {
+		pageNum = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
 	offset := (pageNum - 1) * pageSize
 	query := fmt.Sprintf("select %s from %s where `red_packet_id` = ? order by `received_at` desc, `receiver_id` asc limit ?, ?", redPacketReceiveRows, m.table)
 	var resp []*RedPacketReceive

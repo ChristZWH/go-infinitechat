@@ -20,10 +20,12 @@ type (
 		redPacketModel
 		InsertTx(ctx context.Context, data *RedPacket) (sql.Result, error)
 		UpdateTx(ctx context.Context, data *RedPacket) error
-		// MarkExpiredIfNotCompleted 条件更新：仅当 status = notCompletedStatus 时才置为 expiredStatus。
-		// 返回受影响行数：1 表示本次抢到了「未领完 → 已过期」的状态迁移，可以继续退款；
-		// 0 表示已被其它消费者处理过，必须跳过退款（防止 Kafka 重投/并发消费重复退款）。
-		MarkExpiredIfNotCompleted(ctx context.Context, redPacketId, expiredStatus, notCompletedStatus int64) (int64, error)
+		// MarkStatusIfNotCompleted 条件更新：仅当 status = fromStatus 时才置为 targetStatus。
+		// 返回受影响行数：1 表示本次抢到了状态迁移；0 表示已被其它消费者处理过，必须跳过。
+		// 用于「未领完 → 已过期」退款（ExpirationConsumer）和「未领完 → 已领完」（CompletedConsumer），
+		// 防止 Kafka 重投 / 并发消费重复处理，也防止把已终态（已过期）覆盖回已领完。
+		MarkStatusIfNotCompleted(ctx context.Context, redPacketId, targetStatus, fromStatus int64) (int64, error)
+		DelCache(ctx context.Context, redPacketId int64) error
 	}
 
 	customRedPacketModel struct {
@@ -61,14 +63,14 @@ func (m *customRedPacketModel) UpdateTx(ctx context.Context, data *RedPacket) er
 	return m.Update(ctx, data)
 }
 
-// MarkExpiredIfNotCompleted 见接口注释。
+// MarkStatusIfNotCompleted 见接口注释。
 // 关键点：状态判断和状态写入是同一条 SQL，不存在「先查后写」的窗口。
-func (m *customRedPacketModel) MarkExpiredIfNotCompleted(ctx context.Context, redPacketId, expiredStatus, notCompletedStatus int64) (int64, error) {
+func (m *customRedPacketModel) MarkStatusIfNotCompleted(ctx context.Context, redPacketId, targetStatus, fromStatus int64) (int64, error) {
 	query := fmt.Sprintf("update %s set `status` = ?, `updated_time` = now() where `red_packet_id` = ? and `status` = ?", m.table)
 
 	// 事务内：走 session，缓存由调用方在提交后清理
 	if session := txctx.GetSession(ctx); session != nil {
-		res, err := session.ExecCtx(ctx, query, expiredStatus, redPacketId, notCompletedStatus)
+		res, err := session.ExecCtx(ctx, query, targetStatus, redPacketId, fromStatus)
 		if err != nil {
 			return 0, err
 		}
@@ -78,10 +80,15 @@ func (m *customRedPacketModel) MarkExpiredIfNotCompleted(ctx context.Context, re
 	// 非事务：走 ExecCtx，自动失效 red_packet_id 缓存
 	key := fmt.Sprintf("%s%v", cacheRedPacketRedPacketIdPrefix, redPacketId)
 	res, err := m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (sql.Result, error) {
-		return conn.ExecCtx(ctx, query, expiredStatus, redPacketId, notCompletedStatus)
+		return conn.ExecCtx(ctx, query, targetStatus, redPacketId, fromStatus)
 	}, key)
 	if err != nil {
 		return 0, err
 	}
 	return res.RowsAffected()
+}
+
+func (m *customRedPacketModel) DelCache(ctx context.Context, redPacketId int64) error {
+	key := fmt.Sprintf("%s%v", cacheRedPacketRedPacketIdPrefix, redPacketId)
+	return m.DelCacheCtx(ctx, key)
 }

@@ -5,6 +5,7 @@ package logic
 
 import (
 	"context"
+	"errors"
 
 	"go-infinitechat/common/common"
 	"go-infinitechat/service/redpacket/api/internal/service"
@@ -12,6 +13,7 @@ import (
 	"go-infinitechat/service/redpacket/api/internal/types"
 
 	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 type GetRedPacketDetailLogic struct {
@@ -31,9 +33,13 @@ func NewGetRedPacketDetailLogic(ctx context.Context, svcCtx *svc.ServiceContext)
 func (l *GetRedPacketDetailLogic) GetRedPacketDetail(req *types.RedPacketDetailRequest) (resp *types.RedPacketDetailVO, err error) {
 	common.Infof("查询红包详情，红包ID: %d, pageNum: %d, pageSize: %d\n", req.RedPacketId, req.PageNum, req.PageSize)
 
-	// 1. 查询红包基本信息
+	// 1. 查询红包基本信息（DB 故障与「红包不存在」分开处理）
 	rp, findErr := l.svcCtx.RedPacketModel.FindOne(l.ctx, req.RedPacketId)
-	common.ThrowIfWithMsg(findErr != nil, common.NotFoundError, "红包不存在", findErr)
+	common.ThrowIf(findErr != nil && !errors.Is(findErr, sqlx.ErrNotFound), common.SystemError, findErr)
+	common.ThrowIfWithMsg(rp == nil, common.NotFoundError, "红包不存在")
+
+	// 权限校验：仅发送者或已领取者可见
+	assertCanViewRedPacket(l.ctx, l.svcCtx, req.RedPacketId, rp.SenderId)
 
 	sessionType := int(rp.SessionType.Int64)
 
