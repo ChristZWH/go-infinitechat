@@ -39,15 +39,15 @@ func (m *MessageHandler) Handle(schema, table string, columns map[string]string)
 }
 
 type MessageRedisResponse struct {
-	SessionId   int64           `json:"sessionId"`
-	SenderId    int64           `json:"senderId"`
-	MessageId   int64           `json:"messageId"`
-	Type        int             `json:"type"`
-	SessionType int             `json:"sessionType"`
-	CreatedTime string          `json:"createdTime"`
+	SessionId   int64            `json:"sessionId"`
+	SenderId    int64            `json:"senderId"`
+	MessageId   int64            `json:"messageId"`
+	Type        int              `json:"type"`
+	SessionType int              `json:"sessionType"`
+	CreatedTime string           `json:"createdTime"`
 	Body        *dto.MessageBody `json:"body"`
-	Name        string          `json:"name"`
-	Avatar      string          `json:"avatar"`
+	Name        string           `json:"name"`
+	Avatar      string           `json:"avatar"`
 }
 
 func buildMessageFromMap(colMap map[string]string) *MessageRedisResponse {
@@ -103,6 +103,7 @@ func (m *MessageHandler) storeMessageToRedis(msg *MessageRedisResponse) error {
 		return err
 	}
 
+	// 设置 score（按照时间进行设置）
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	t, err := time.ParseInLocation("2006-01-02 15:04:05", msg.CreatedTime, loc)
 	if err != nil {
