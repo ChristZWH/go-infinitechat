@@ -144,7 +144,7 @@ func (c *ExpirationConsumer) Consume(ctx context.Context, key, value string) err
 		// 3. 先原子抢占「未领完 → 已过期」这一状态迁移，抢到的那一次才退款。
 		//    只 UPDATE 不先查状态：Kafka 重投或并发消费时 RowsAffected 为 0，钱只会退一次。
 		affected, updErr := c.rpSvc.RedPacketModel.MarkStatusIfNotCompleted(ctx, redPacketId, constants.StatusExpired, constants.StatusNotCompleted)
-		common.ThrowIfWithMsg(updErr != nil, common.OperationError, "更新红包状态失败Consume-WithTransaction", updErr)
+		common.ThrowIfWithMsg(updErr != nil, common.SystemError, "更新红包状态失败Consume-WithTransaction", updErr)
 		if affected == 0 {
 			logx.Infof("红包已被其它消费者处理，跳过退款。红包ID: %d", redPacketId)
 			return nil

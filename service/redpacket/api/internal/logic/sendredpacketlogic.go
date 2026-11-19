@@ -47,7 +47,7 @@ func NewSendRedPacketLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Sen
 	}
 }
 
-// 发送红包。clientMessageId 非空时走幂等：重复提交直接返回上次结果。
+// 发送红包。clientMessageId 必传（validate:required），全程走幂等：重复提交直接返回上次结果。
 func (l *SendRedPacketLogic) SendRedPacket(req *types.RedPacketSendRequest) (resp *types.RedPacketSendVO, err error) {
 	// 发送者只能是"我"，以网关登录为准
 	identity.OverrideIfPresent(l.ctx, &req.SenderId)
@@ -99,9 +99,8 @@ func (l *SendRedPacketLogic) replayIdempotentResult(dedupKey string) (*types.Red
 	common.ThrowIfWithMsg(val == "" || val == idempotencyPending, common.OperationError, "请求处理中，请稍后重试")
 
 	parts := strings.SplitN(val, ":", 2)
-	if len(parts) != 2 {
-		common.ThrowWithMsg(common.SystemError, "幂等结果格式异常")
-	}
+	common.ThrowIfWithMsg(len(parts) != 2, common.SystemError, "幂等结果格式异常")
+
 	redPacketId, _ := strconv.ParseInt(parts[0], 10, 64)
 	clientMessageId, _ := strconv.ParseInt(parts[1], 10, 64)
 	return &types.RedPacketSendVO{RedPacketId: redPacketId, MessageId: clientMessageId}, nil

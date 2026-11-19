@@ -43,6 +43,9 @@ func (l *ReceiveRedPacketLogic) ReceiveRedPacket(req *types.RedPacketReceiveRequ
 	common.ThrowIfWithMsg(rp == nil, common.NotFoundError, "红包不存在")
 	common.ThrowIfWithMsg(rp.SenderId == req.UserId, common.OperationError, "不能领取自己的红包")
 
+	// 会话成员校验：非会话成员不能领（群聊=群成员，单聊=发送者好友）
+	common.ThrowIfWithMsg(!isSessionMember(l.ctx, l.svcCtx, req.UserId, rp.SenderId, rp.SessionId, rp.SessionType.Int64), common.NoAuthError, "无权领取该红包")
+
 	// 执行抢红包 Lua 脚本
 	resultCode, completed := l.svcCtx.RedPacketService.ExecuteReceiveLua(l.ctx, req.RedPacketId, req.UserId)
 

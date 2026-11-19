@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"go-infinitechat/common/common"
+	"go-infinitechat/common/identity"
 	"go-infinitechat/service/redpacket/api/internal/service"
 	"go-infinitechat/service/redpacket/api/internal/svc"
 	"go-infinitechat/service/redpacket/api/internal/types"
@@ -97,4 +98,17 @@ func (l *GetRedPacketDetailLogic) GetRedPacketDetail(req *types.RedPacketDetailR
 
 	common.Infof("红包详情查询完成，红包ID: %d, 状态: %d, 已领取数量: %d\n", req.RedPacketId, resp.Status, resp.ReceivedCount)
 	return resp, nil
+}
+
+// assertCanViewRedPacket 校验当前登录用户是否有权查看该红包的「领取记录」：仅发送者或已领取者可见。
+// 用于 detail 接口，堵住「任意登录用户按 redPacketId 遍历他人红包详情」的信息泄露。
+func assertCanViewRedPacket(ctx context.Context, svcCtx *svc.ServiceContext, redPacketId, senderId int64) {
+	userId, ok := identity.UserId(ctx)
+	common.ThrowIfWithMsg(!ok, common.NoAuthError, "未登录")
+	if userId == senderId {
+		return
+	}
+	rec, err := svcCtx.RedPacketReceiveModel.FindOneByRedPacketIdReceiverId(ctx, redPacketId, userId)
+	common.ThrowIf(err != nil && !errors.Is(err, sqlx.ErrNotFound), common.SystemError, err)
+	common.ThrowIfWithMsg(rec == nil, common.NoAuthError, "无权查看该红包")
 }
